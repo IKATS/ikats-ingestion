@@ -1,0 +1,122 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<groupId>fr.cs.ikats</groupId>
+	<artifactId>ikats-ingestion</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name>ikats-ingestion</name>
+	<description>Data import management into IKATS</description>
+	<packaging>war</packaging>
+
+	<properties>
+	    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+	    <jersey.version>2.23.2</jersey.version>
+	</properties>
+
+	<build>
+        <finalName>${project.artifactId}</finalName>
+		<plugins>
+			<!--Compile the sources -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<version>3.1</version>
+				<configuration>
+					<source>1.8</source>
+					<target>1.8</target>
+				</configuration>
+			</plugin>
+			
+			<!-- Build the WAR -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-war-plugin</artifactId>
+				<version>2.1.1</version>
+				<configuration>
+					<archiveClasses>true</archiveClasses>
+					<webResources>
+						<resource>
+							<directory>src/main/resources</directory>
+							<targetPath>WEB-INF/classes</targetPath>
+							<includes>
+								<include>**/*</include>
+							</includes>
+						</resource>
+						<resource>
+							<directory>src/main/webapp</directory>
+							<targetPath></targetPath>
+							<includes>
+								<include>**/*</include>
+							</includes>
+						</resource>
+						<resource>
+							<!-- Overrides default resources with target env --> 
+							<directory>environments/${target}/resources</directory>
+							<targetPath>WEB-INF/classes</targetPath>
+							<includes>
+								<include>**/*</include>
+							</includes>
+						</resource>
+						<resource>
+							<!-- Overrides default webapp with target env --> 
+							<directory>environments/${target}/webapp</directory>
+							<targetPath></targetPath>
+							<includes>
+								<include>**/*</include>
+							</includes>
+						</resource>
+					</webResources>
+				</configuration>
+			</plugin>
+			
+			<!-- Manage Tomcat deployement with tomcat7:xxx (xxx = goal) -->        
+	        <plugin>
+	          <groupId>org.apache.tomcat.maven</groupId>
+	          <artifactId>tomcat7-maven-plugin</artifactId>
+	          <version>2.2</version>
+				<configuration>
+					<server>${server.name}</server>
+					<url>http://${tomcat.domain}:${tomcat.port}/manager/text</url>
+					<path>${app.path}</path>
+					<warFile>target/${project.artifactId}.war</warFile>
+					<update>true</update>
+				</configuration>
+	        </plugin>
+		</plugins>
+	</build>
+	
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.glassfish.jersey</groupId>
+                <artifactId>jersey-bom</artifactId>
+                <version>${jersey.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+	<dependencies>
+	    <dependency>
+	        <groupId>org.glassfish.jersey.containers</groupId>
+	        <artifactId>jersey-container-servlet-core</artifactId>
+<!-- Supplied by dependencyManagement -->
+<!-- 	        <version>2.23.2</version> -->
+<!-- 	        <scope>provided</scope> -->
+	    </dependency>
+		<dependency>
+		    <groupId>org.glassfish.jersey.core</groupId>
+		    <artifactId>jersey-server</artifactId>
+<!-- Supplied by dependencyManagement -->
+<!-- 	        <version>2.23.2</version> -->
+<!-- 			<scope>provided</scope> -->
+		</dependency>
+        <dependency>
+	        <groupId>javax.ejb</groupId>
+	        <artifactId>javax.ejb-api</artifactId>
+	        <version>3.2</version>
+<!-- 	        <scope>provided</scope> -->
+	    </dependency>
+	</dependencies>
+</project>
