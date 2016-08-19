@@ -33,6 +33,7 @@
 				<artifactId>maven-war-plugin</artifactId>
 				<version>2.1.1</version>
 				<configuration>
+					<failOnMissingWebXml>false</failOnMissingWebXml>
 					<archiveClasses>true</archiveClasses>
 					<webResources>
 						<resource>
@@ -69,19 +70,19 @@
 				</configuration>
 			</plugin>
 			
-			<!-- Manage Tomcat deployement with tomcat7:xxx (xxx = goal) -->        
-	        <plugin>
-	          <groupId>org.apache.tomcat.maven</groupId>
-	          <artifactId>tomcat7-maven-plugin</artifactId>
-	          <version>2.2</version>
+			<plugin>
+				<groupId>org.glassfish</groupId>
+				<artifactId>maven-embedded-glassfish-plugin</artifactId>
+				<version>4.0-SNAPSHOT</version>
 				<configuration>
-					<server>${server.name}</server>
-					<url>http://${tomcat.domain}:${tomcat.port}/manager/text</url>
-					<path>${app.path}</path>
-					<warFile>target/${project.artifactId}.war</warFile>
-					<update>true</update>
+					<goalPrefix>glassfish</goalPrefix>
+					<app>${project.build.directory}/${project.build.finalName}</app>
+					<port>8080</port>
+					<contextRoot>${project.build.finalName}</contextRoot>
+					<name>${project.build.finalName}l</name>
+					<autoDelete>true</autoDelete>
 				</configuration>
-	        </plugin>
+			</plugin>
 		</plugins>
 	</build>
 	
@@ -103,14 +104,14 @@
 	        <artifactId>jersey-container-servlet-core</artifactId>
 <!-- Supplied by dependencyManagement -->
 <!-- 	        <version>2.23.2</version> -->
-<!-- 	        <scope>provided</scope> -->
+	        <scope>provided</scope>
 	    </dependency>
 		<dependency>
 		    <groupId>org.glassfish.jersey.core</groupId>
 		    <artifactId>jersey-server</artifactId>
 <!-- Supplied by dependencyManagement -->
 <!-- 	        <version>2.23.2</version> -->
-<!-- 			<scope>provided</scope> -->
+			<scope>provided</scope>
 		</dependency>
         <dependency>
 	        <groupId>javax.ejb</groupId>
