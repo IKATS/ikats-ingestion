@@ -11,6 +11,7 @@
 	<properties>
 	    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	    <jersey.version>2.23.2</jersey.version>
+		<jackson.version>2.3.0</jackson.version>
 	</properties>
 
 	<build>
@@ -70,19 +71,6 @@
 				</configuration>
 			</plugin>
 			
-			<plugin>
-				<groupId>org.glassfish</groupId>
-				<artifactId>maven-embedded-glassfish-plugin</artifactId>
-				<version>4.0-SNAPSHOT</version>
-				<configuration>
-					<goalPrefix>glassfish</goalPrefix>
-					<app>${project.build.directory}/${project.build.finalName}</app>
-					<port>8080</port>
-					<contextRoot>${project.build.finalName}</contextRoot>
-					<name>${project.build.finalName}l</name>
-					<autoDelete>true</autoDelete>
-				</configuration>
-			</plugin>
 		</plugins>
 	</build>
 	
@@ -111,7 +99,7 @@
 		    <artifactId>jersey-server</artifactId>
 <!-- Supplied by dependencyManagement -->
 <!-- 	        <version>2.23.2</version> -->
-			<scope>provided</scope>
+<!-- 			<scope>provided</scope> -->
 		</dependency>
         <dependency>
 	        <groupId>javax.ejb</groupId>
@@ -119,5 +107,40 @@
 	        <version>3.2</version>
 <!-- 	        <scope>provided</scope> -->
 	    </dependency>
+		
+		<dependency>
+			<groupId>org.glassfish.jaxb</groupId>
+			<artifactId>jaxb-runtime</artifactId>
+			<version>2.2.11</version>
+		</dependency>
+	    
+	    <!-- Logging -->
+		<dependency> 
+  			<groupId>ch.qos.logback</groupId>
+  			<artifactId>logback-classic</artifactId>
+  			<version>1.0.13</version>
+		</dependency>
+
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-core</artifactId>
+			<version>${jackson.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-annotations</artifactId>
+			<version>${jackson.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+			<version>${jackson.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.fasterxml.jackson.jaxrs</groupId>
+			<artifactId>jackson-jaxrs-json-provider</artifactId>
+			<version>${jackson.version}</version>
+		</dependency>
+
 	</dependencies>
 </project>
