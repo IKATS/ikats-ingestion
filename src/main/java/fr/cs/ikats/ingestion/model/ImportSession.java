@@ -4,16 +4,17 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 
-import javax.ejb.EJB;
-
 import fr.cs.ikats.ingestion.api.ImportSessionDto;
 
+//@RequestScoped
 public class ImportSession extends ImportSessionDto {
 
-	@EJB private ModelManager modelManager;
+//	@XmlTransient
+//	@Inject private ModelManager modelManager;
 	
 	private ImportSession() {
-		this.id = modelManager.importSessionSeqNext();
+//		this.id = modelManager.importSessionSeqNext();
+		this.id = ModelManager.getInstance().importSessionSeqNext();
 	}
 	
 	public ImportSession(String dataset, String basePath, HashMap<String, String> tags) {
@@ -51,11 +52,11 @@ public class ImportSession extends ImportSessionDto {
 		return items;
 	}
 
-	public Enum<ImportStatus> getStatus() {
+	public ImportStatus getStatus() {
 		return status;
 	}
 
-	public void setStatus(Enum<ImportStatus> status) {
+	public void setStatus(ImportStatus status) {
 		this.status = status;
 	}
 	

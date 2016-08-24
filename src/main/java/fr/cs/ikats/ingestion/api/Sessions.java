@@ -10,14 +10,22 @@ import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.GenericEntity;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import javax.ws.rs.core.Response.Status;
+import javax.ws.rs.core.UriBuilder;
+import javax.ws.rs.core.UriInfo;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import fr.cs.ikats.ingestion.IngestionService;
 import fr.cs.ikats.ingestion.model.ImportSession;
 
 /**
- * Root resource (exposed at "myresource" path)
+ * Root resource (exposed at "sessions" path)
  */
 @Path("sessions")
 @Stateless
@@ -25,26 +33,45 @@ public class Sessions {
 	
 	@EJB IngestionService app;
 	
+	private Logger logger = LoggerFactory.getLogger(Sessions.class);
+	
     /**
-     * @return the list of {@link ImportSession} that will be returned as a application/json response.
+     * @return the list of {@link ImportSession} as a 'application/json' response.
      */
     @GET
     @Produces(MediaType.APPLICATION_JSON)
-    public List<ImportSession> getSessionsList() {
-        return app.getSessions();
-//    	return new ArrayList<ImportSession>(0);
+    public Response getSessionsList() {
+    	
+    	if (app == null) {
+    		logger.error("IngestionService EJB not injected");
+    		return Response.status(Status.SERVICE_UNAVAILABLE).build();
+    	}
+    	
+    	GenericEntity<List<ImportSession>> sessionsWrapped = new GenericEntity<List<ImportSession>>(app.getSessions(), List.class); 
+        return Response.ok(sessionsWrapped).build();
     }
     
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
-    public Response createSession(ImportSessionDto session) {
-    	return null;
+    public Response createSession(ImportSessionDto session, @Context UriInfo uriInfo) {
+    	
+    	if (app == null) {
+    		logger.error("IngestionService EJB not injected");
+    		return Response.status(Status.SERVICE_UNAVAILABLE).build();
+    	}
+
+    	int id = app.addSession(session);
+    	UriBuilder uri = uriInfo.getAbsolutePathBuilder();
+    	uri.path(Integer.toString(id));
+    	
+    	return Response.created(uri.build()).build();
     }
     
     @DELETE
     @Consumes(MediaType.APPLICATION_JSON)
     public Response cancellSession(ImportSessionDto session) {
-    	return null;
+    	// TODO implement !
+		return Response.status(Status.NOT_IMPLEMENTED).entity(session).build();
     }
     
 }

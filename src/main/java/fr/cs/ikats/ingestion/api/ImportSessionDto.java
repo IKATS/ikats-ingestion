@@ -4,17 +4,22 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 
+import javax.xml.bind.annotation.XmlElement;
+import javax.xml.bind.annotation.XmlElementWrapper;
+
 import fr.cs.ikats.ingestion.model.ImportItem;
 import fr.cs.ikats.ingestion.model.ImportStatus;
 
 public class ImportSessionDto {
 
-	protected int id;
-	protected String dataset;
-	protected String basePath;
-	protected HashMap<String, String> tags;
-	protected List<ImportItem> items;
-	protected Enum<ImportStatus> status;
+	public int id;
+	public String dataset;
+	public String basePath;
+	public HashMap<String, String> tags;
+	@XmlElementWrapper(name = "items")
+	@XmlElement(name = "item")
+	public List<ImportItem> items;
+	protected ImportStatus status;
 	protected Date startDate;
 
 	public ImportSessionDto() {

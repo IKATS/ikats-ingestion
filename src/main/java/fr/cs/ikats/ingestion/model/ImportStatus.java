@@ -5,6 +5,7 @@ public enum ImportStatus {
 	CREATED,
 	RUNNING,
 	CANCELLED,
-	COMPLETED
+	COMPLETED,
+	/** Null */ UNKNOW;
 
 }
