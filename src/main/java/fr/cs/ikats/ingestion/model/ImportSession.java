@@ -4,11 +4,25 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 
+import javax.xml.bind.annotation.XmlElement;
+import javax.xml.bind.annotation.XmlElementWrapper;
+
+import org.apache.commons.lang3.builder.ToStringBuilder;
+
 import fr.cs.ikats.ingestion.api.ImportSessionDto;
 
 //@RequestScoped
 public class ImportSession extends ImportSessionDto {
 
+	@XmlElementWrapper(name = "toImport")
+	@XmlElement(name = "item")
+	private List<ImportItem> itemsToImport;
+	@XmlElementWrapper(name = "imported")
+	@XmlElement(name = "item")
+	private List<ImportItem> itemsImported;
+	private ImportStatus status;
+	private Date startDate;
+	
 //	@XmlTransient
 //	@Inject private ModelManager modelManager;
 	
@@ -17,11 +31,17 @@ public class ImportSession extends ImportSessionDto {
 		this.id = ModelManager.getInstance().importSessionSeqNext();
 	}
 	
-	public ImportSession(String dataset, String basePath, HashMap<String, String> tags) {
+	public ImportSession(ImportSessionDto simple) {
 		this();
-		this.dataset = dataset;
-		this.basePath = basePath;
-		this.tags = tags;
+		this.dataset = simple.dataset;
+		this.rootPath = simple.rootPath;
+		this.pathPattern = simple.pathPattern;
+		this.tags = simple.tags;
+		this.status = ImportStatus.CREATED;
+	}
+	
+	public String toString() {
+		return ToStringBuilder.reflectionToString(this);
 	}
 	
 	public int getId() {
@@ -32,8 +52,8 @@ public class ImportSession extends ImportSessionDto {
 		return dataset;
 	}
 
-	public String getBasePath() {
-		return basePath;
+	public String getRootPath() {
+		return rootPath;
 	}
 
 	public HashMap<String, String> getTags() {
@@ -48,8 +68,12 @@ public class ImportSession extends ImportSessionDto {
 		this.startDate = startDate;
 	}
 	
-	public List<ImportItem> getItems() {
-		return items;
+	public List<ImportItem> getItemsToImport() {
+		return itemsToImport;
+	}
+
+	public List<ImportItem> getItemsImported() {
+		return itemsImported;
 	}
 
 	public ImportStatus getStatus() {
@@ -61,4 +85,3 @@ public class ImportSession extends ImportSessionDto {
 	}
 	
 }
-

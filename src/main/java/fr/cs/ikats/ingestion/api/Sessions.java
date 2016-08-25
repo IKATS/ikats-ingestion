@@ -8,7 +8,9 @@ import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
+import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.GenericEntity;
@@ -51,6 +53,20 @@ public class Sessions {
         return Response.ok(sessionsWrapped).build();
     }
     
+    @GET
+    @Path("{id}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getSession(@PathParam(value = "id") int id) {
+
+    	ImportSessionDto session = app.getSession(id);
+    	
+    	if (session != null) {
+    		return Response.ok(session).build();
+    	} else {
+    		return Response.status(Status.NOT_FOUND).build();
+    	}
+    }
+    
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
     public Response createSession(ImportSessionDto session, @Context UriInfo uriInfo) {
@@ -60,18 +76,41 @@ public class Sessions {
     		return Response.status(Status.SERVICE_UNAVAILABLE).build();
     	}
 
+    	// Add the session
     	int id = app.addSession(session);
+
+    	// Return the location header
     	UriBuilder uri = uriInfo.getAbsolutePathBuilder();
     	uri.path(Integer.toString(id));
     	
     	return Response.created(uri.build()).build();
     }
     
-    @DELETE
-    @Consumes(MediaType.APPLICATION_JSON)
-    public Response cancellSession(ImportSessionDto session) {
+    @PUT
+    @Path("{action}")
+    public Response updateSessions(@PathParam(value = "action") String action) {
     	// TODO implement !
-		return Response.status(Status.NOT_IMPLEMENTED).entity(session).build();
+		return Response.status(Status.NOT_IMPLEMENTED).build();
+    }
+    
+    @PUT
+    @Path("{id}/{action}")
+    public Response updateSession(@PathParam(value = "id") int id, @PathParam(value = "action") String action) {
+    	// TODO implement !
+		return Response.status(Status.NOT_IMPLEMENTED).build();
+    }
+    
+    @DELETE
+    public Response removeAll() {
+    	// TODO implement !
+		return Response.status(Status.NOT_IMPLEMENTED).build();
+    }
+    
+    @DELETE
+    @Path("{id}")
+    public Response removeSession(@PathParam(value = "id") int id) {
+    	// TODO implement !
+		return Response.status(Status.NOT_IMPLEMENTED).build();
     }
     
 }
