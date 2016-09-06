@@ -45,19 +45,23 @@ public class ImportSession extends ImportSessionDto {
 	}
 	
 	public int getId() {
-		return id;
+		return super.id;
 	}
 
 	public String getDataset() {
-		return dataset;
+		return super.dataset;
 	}
 
+	public String getDescription() {
+		return super.description;
+	}
+	
 	public String getRootPath() {
-		return rootPath;
+		return super.rootPath;
 	}
 
 	public HashMap<String, String> getTags() {
-		return tags;
+		return super.tags;
 	}
 
 	public Date getStartDate() {
@@ -83,5 +87,5 @@ public class ImportSession extends ImportSessionDto {
 	public void setStatus(ImportStatus status) {
 		this.status = status;
 	}
-	
+
 }

@@ -41,11 +41,15 @@ public class ImportAnalyser implements Runnable {
 		}
 		
 		// walk the tree directories to prepare the CSV files
+		// Code base from http://rosettacode.org/wiki/Walk_a_directory/Recursively#Java
 		try {
 			Files.walk(root)
 			     .filter( path -> path.toFile().isFile())
 			     .filter( path -> testFilepath(path) )
 			     .forEach( path -> createImportSessionItem(path.toFile()) );
+			
+			// note on Files nio API, and filters : sess explanations here :
+			// http://stackoverflow.com/questions/29316310/java-8-lambda-expression-for-filenamefilter/29316408#29316408
 		} catch (IOException e) {
 			// FIXME manage exception
 			throw new RuntimeException(e);

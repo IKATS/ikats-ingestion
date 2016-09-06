@@ -4,8 +4,11 @@ import java.util.HashMap;
 
 public class ImportSessionDto {
 
+	/** Optional for client requests : only used with API calls for info on session or to change session state */
 	public int id;
 	public String dataset;
+	public String description;
+	/** Absolute root path of the dataset on the import server where files are located */
 	public String rootPath;
 	/**
 	 * Pattern rules for tags and metric of dataset and TS:<br>
@@ -24,6 +27,7 @@ public class ImportSessionDto {
 	 * </ol>
 	 */
 	public String pathPattern;
+	/** Dataset tags. Not used for now */
 	public HashMap<String, String> tags;
 
 	public ImportSessionDto() {

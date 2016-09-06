@@ -43,6 +43,11 @@ public class ModelManager {
     	return instance;
     }
 	
+    /**
+     * Inner class used as container for the data model to be serialized.
+     * Add two extra data : the id sequences. 
+     * @author ftoral
+     */
 	@XmlRootElement
 	@XmlAccessorType(XmlAccessType.FIELD)
 	static class IngestionModel {
