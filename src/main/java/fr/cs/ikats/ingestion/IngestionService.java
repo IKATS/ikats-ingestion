@@ -21,6 +21,7 @@ import fr.cs.ikats.ingestion.api.ImportSessionDto;
 import fr.cs.ikats.ingestion.model.ImportSession;
 import fr.cs.ikats.ingestion.model.ModelManager;
 import fr.cs.ikats.ingestion.process.IngestionProcess;
+import fr.cs.ikats.util.concurrent.ExecutorPoolManager;
 
 @Startup
 @Singleton
@@ -33,6 +34,9 @@ public class IngestionService {
 	/** Pointer to allow persistence of the model */
 	@EJB 
 	private ModelManager modelManager;
+	
+	@EJB 
+	private ExecutorPoolManager executorPoolManager;
 	
 	@Resource(name="java:comp/DefaultManagedThreadFactory") 
 	private ManagedThreadFactory threadFactory;
@@ -106,7 +110,7 @@ public class IngestionService {
 	private void startIngestionProcess(ImportSession newSession) {
 		
 		// Start processsing in a thread
-		threadFactory.newThread(new IngestionProcess(threadFactory, newSession)).start();
+		threadFactory.newThread(new IngestionProcess(newSession, threadFactory, executorPoolManager)).start();
 	}
 	
 }

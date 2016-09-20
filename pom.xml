@@ -1,4 +1,5 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
 	<groupId>fr.cs.ikats</groupId>
@@ -9,13 +10,13 @@
 	<packaging>war</packaging>
 
 	<properties>
-	    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-	    <jersey.version>2.23.2</jersey.version>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<jersey.version>2.23.2</jersey.version>
 		<jackson.version>2.3.0</jackson.version>
 	</properties>
 
 	<build>
-        <finalName>${project.artifactId}</finalName>
+		<finalName>${project.artifactId}</finalName>
 		<plugins>
 			<!--Compile the sources -->
 			<plugin>
@@ -27,7 +28,7 @@
 					<target>1.8</target>
 				</configuration>
 			</plugin>
-			
+
 			<!-- Build the WAR -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
@@ -52,7 +53,7 @@
 							</includes>
 						</resource>
 						<resource>
-							<!-- Overrides default resources with target env --> 
+							<!-- Overrides default resources with target env -->
 							<directory>environments/${target}/resources</directory>
 							<targetPath>WEB-INF/classes</targetPath>
 							<includes>
@@ -60,7 +61,7 @@
 							</includes>
 						</resource>
 						<resource>
-							<!-- Overrides default webapp with target env --> 
+							<!-- Overrides default webapp with target env -->
 							<directory>environments/${target}/webapp</directory>
 							<targetPath></targetPath>
 							<includes>
@@ -70,55 +71,78 @@
 					</webResources>
 				</configuration>
 			</plugin>
-			
+
 		</plugins>
 	</build>
-	
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>org.glassfish.jersey</groupId>
-                <artifactId>jersey-bom</artifactId>
-                <version>${jersey.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
+
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>org.glassfish.jersey</groupId>
+				<artifactId>jersey-bom</artifactId>
+				<version>${jersey.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
 
 	<dependencies>
-	    <dependency>
-	        <groupId>org.glassfish.jersey.containers</groupId>
-	        <artifactId>jersey-container-servlet-core</artifactId>
-<!-- Supplied by dependencyManagement -->
-<!-- 	        <version>2.23.2</version> -->
-	        <scope>provided</scope>
-	    </dependency>
 		<dependency>
-		    <groupId>org.glassfish.jersey.core</groupId>
-		    <artifactId>jersey-server</artifactId>
-<!-- Supplied by dependencyManagement -->
-<!-- 	        <version>2.23.2</version> -->
-<!-- 			<scope>provided</scope> -->
+			<groupId>org.apache.openejb</groupId>
+			<artifactId>javaee-api</artifactId>
+			<version>7.0-SNAPSHOT</version>
+			<scope>provided</scope>
 		</dependency>
-        <dependency>
-	        <groupId>javax.ejb</groupId>
-	        <artifactId>javax.ejb-api</artifactId>
-	        <version>3.2</version>
-<!-- 	        <scope>provided</scope> -->
-	    </dependency>
-		
+		<dependency>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
+			<version>4.11</version>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- The <scope>test</scope> guarantees that non of your runtime code is 
+			dependent on any OpenEJB classes. -->
+		<dependency>
+			<groupId>org.apache.openejb</groupId>
+			<artifactId>openejb-core</artifactId>
+			<version>5.0.0-SNAPSHOT</version>
+			<scope>test</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>org.glassfish.jersey.containers</groupId>
+			<artifactId>jersey-container-servlet-core</artifactId>
+			<!-- Supplied by dependencyManagement -->
+			<!-- <version>2.23.2</version> -->
+			<scope>provided</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>org.glassfish.jersey.core</groupId>
+			<artifactId>jersey-server</artifactId>
+			<!-- Supplied by dependencyManagement -->
+			<!-- <version>2.23.2</version> -->
+			<!-- <scope>provided</scope> -->
+		</dependency>
+		<dependency>
+			<groupId>javax.ejb</groupId>
+			<artifactId>javax.ejb-api</artifactId>
+			<version>3.2</version>
+			<scope>provided</scope>
+		</dependency>
+
 		<dependency>
 			<groupId>org.glassfish.jaxb</groupId>
 			<artifactId>jaxb-runtime</artifactId>
 			<version>2.2.11</version>
 		</dependency>
-	    
-	    <!-- Logging -->
-		<dependency> 
-  			<groupId>ch.qos.logback</groupId>
-  			<artifactId>logback-classic</artifactId>
-  			<version>1.0.13</version>
+
+		<!-- Logging -->
+		<dependency>
+			<groupId>ch.qos.logback</groupId>
+			<artifactId>logback-classic</artifactId>
+			<version>1.0.13</version>
 		</dependency>
 
 		<dependency>
@@ -141,25 +165,25 @@
 			<artifactId>jackson-jaxrs-json-provider</artifactId>
 			<version>${jackson.version}</version>
 		</dependency>
-		
+
 		<dependency>
 			<groupId>javax.enterprise.concurrent</groupId>
 			<artifactId>javax.enterprise.concurrent-api</artifactId>
 			<version>1.0</version>
 			<scope>provided</scope>
 		</dependency>
-		
+
 		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-lang3</artifactId>
-			<version>3.4</version>		
+			<version>3.4</version>
 		</dependency>
-		
+
 		<dependency>
 			<groupId>java.fr.cs.ikats</groupId>
 			<artifactId>db-web-client</artifactId>
 			<version>0.0.1-SNAPSHOT</version>
 		</dependency>
-		
+
 	</dependencies>
 </project>

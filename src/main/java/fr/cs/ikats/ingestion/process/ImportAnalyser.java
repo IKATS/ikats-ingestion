@@ -19,8 +19,11 @@ public class ImportAnalyser implements Runnable {
 	private Logger logger = LoggerFactory.getLogger(ImportAnalyser.class);
 
 	private ImportSession session;
+
+	private IngestionProcess ingestionProcess;
 	
-	public ImportAnalyser(ImportSession session) {
+	public ImportAnalyser(IngestionProcess ingestionProcess, ImportSession session) {
+		this.ingestionProcess = ingestionProcess;
 		this.session = session;
 	}
 
@@ -29,6 +32,7 @@ public class ImportAnalyser implements Runnable {
 		
 		walkOverDataset();
 		session.setStatus(ImportStatus.ANALYSED);
+		ingestionProcess.continueProcess();
 	}
 
 	private void walkOverDataset() {
@@ -79,7 +83,7 @@ public class ImportAnalyser implements Runnable {
 	}
 
 	private void createImportSessionItem(File importFile) {
-		ImportItem item = new ImportItem(importFile);
+		ImportItem item = new ImportItem(this.session, importFile);
 
 		// extract metric and tags
 		extractMetricAndTags(item);

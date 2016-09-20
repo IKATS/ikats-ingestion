@@ -1,6 +1,7 @@
 package fr.cs.ikats.ingestion.process;
 
 import javax.enterprise.concurrent.ManagedThreadFactory;
+import javax.naming.NamingException;
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.client.Entity;
@@ -15,17 +16,28 @@ import org.slf4j.LoggerFactory;
 
 import fr.cs.ikats.ingestion.model.ImportSession;
 import fr.cs.ikats.ingestion.model.ImportStatus;
+import fr.cs.ikats.util.concurrent.ExecutorPoolManager;
 
 public class IngestionProcess implements Runnable {
 
 	private ManagedThreadFactory threadFactory;
 	private ImportSession session;
+	private ExecutorPoolManager executorPoolManager;
+	private Object waiter = new Object();
 	
 	private Logger logger = LoggerFactory.getLogger(IngestionProcess.class);
 
-	public IngestionProcess(ManagedThreadFactory threadFactory, ImportSession session) {
+	public IngestionProcess(ImportSession session, ManagedThreadFactory threadFactory, ExecutorPoolManager executorPoolManager) {
 		this.threadFactory = threadFactory;
 		this.session = session;
+		this.executorPoolManager = executorPoolManager;
+	}
+	
+	/**
+	 * @return the executorPoolManager
+	 */
+	public ExecutorPoolManager getExecutorPool() {
+		return executorPoolManager;
 	}
 
 	@Override
@@ -40,34 +52,49 @@ public class IngestionProcess implements Runnable {
 		// 4- Analyse first batch import
 		// 5- Loop to 2 until each item is imported if previous analyse permits it.
 		
-		// manage only on ImportSession
+		// manage only one ImportSession
 		while(session.getStatus() != ImportStatus.COMPLETED
 				|| session.getStatus() != ImportStatus.CANCELLED
 				|| session.getStatus() != ImportStatus.STOPPED) {
 			
 			switch (session.getStatus()) {
-			case CREATED:
-				Thread analyser = threadFactory.newThread(new ImportAnalyser(this.session));
-				analyser.start();
-				break;
-			case ANALYSED:
-				logger.info("Import session analysed: Dataset={}, Nb Items to import={}", session.getDataset(), session.getItemsToImport().size());
-				registerDataset(session);
-				break;
-			case DATASET_REGISTERED:
-				logger.info("Datset {} registered in IKATS", session.getDataset());
-			case RUNNING:
-			case COMPLETED:
-			default:
-				// TODO manage an exception here when implementation will be full
-				//break;
-				// For instance, set import cancelled :
-				session.setStatus(ImportStatus.CANCELLED);
-				continue;
+				case CREATED:
+					Thread analyser = threadFactory.newThread(new ImportAnalyser(this, this.session));
+					analyser.start();
+					break;
+				case ANALYSED:
+					logger.info("Import session analysed: Dataset={}, Nb Items to import={}", session.getDataset(), session.getItemsToImport().size());
+					registerDataset(session);
+					break;
+				case DATASET_REGISTERED:
+					logger.info("Datset {} registered in IKATS", session.getDataset());
+					try {
+						Thread importer = threadFactory.newThread(new ImportSessionIngester(this, this.session));
+						this.session.setStatus(ImportStatus.RUNNING);
+						importer.start();
+					} catch (NamingException ne) {
+						// Cancel the session
+						this.session.setStatus(ImportStatus.CANCELLED);
+						logger.error("Import session cancelled", ne);
+					}
+					break;
+				case RUNNING:
+					// Do nothing while ImportSession is running
+					break;
+				case COMPLETED:
+				default:
+					// TODO manage an exception here when implementation will be full
+					//break;
+					// For instance, set import cancelled :
+					session.setStatus(ImportStatus.CANCELLED);
+					continue;
 			}
 			
 			try {
-				Thread.sleep(10000);
+				// Lock that thread until notification to restart by a subprocess
+				synchronized (waiter) {
+					waiter.wait();
+				}
 			} catch (InterruptedException ie) {
 				// TODO manage error ?
 				logger.warn("Interrupted while waiting", ie);
@@ -75,6 +102,12 @@ public class IngestionProcess implements Runnable {
 		}
 		
 
+	}
+	
+	public void continueProcess() {
+		synchronized (waiter) {
+			waiter.notify();
+		}
 	}
 
 	private void registerDataset(ImportSession session) {
@@ -109,13 +142,15 @@ public class IngestionProcess implements Runnable {
         url = appUrl + "/dataset/import/" + session.getDataset();
         response = client.target(url).request().post(Entity.entity(form, MediaType.APPLICATION_FORM_URLENCODED_TYPE));
         
-        if(response.getStatus() != Response.Status.CREATED.getStatusCode()) {
+        if(response.getStatus() == Response.Status.CREATED.getStatusCode()) {
+        	logger.info("Dataset {} registered by import in session id {}", session.getDataset(), session.getId());
+        	// Cancel the import session
+        	session.setStatus(ImportStatus.RUNNING);
+        } else {
         	logger.error("Dataset {} not created as per TDM API response {}", session.getDataset(), response.getStatusInfo());
         	// Cancel the import session
         	session.setStatus(ImportStatus.CANCELLED);
         }
-
-        logger.info("Dataset {} registered by import in session id {}", session.getDataset(), session.getId());
 	}
 
 }
