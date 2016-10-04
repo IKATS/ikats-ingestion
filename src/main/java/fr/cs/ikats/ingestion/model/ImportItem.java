@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 public class ImportItem {
 
 	private File file;
+	private String metric;
 	private HashMap<String, String> tags;
 	private ImportStatus status;
 	@XmlTransient
@@ -61,6 +62,14 @@ public class ImportItem {
 
 	public void setFile(File file) {
 		this.file = file;
+	}
+
+	public String getMetric() {
+		return metric;
+	}
+
+	public void setMetric(String metric) {
+		this.metric = metric;
 	}
 
 	public HashMap<String, String> getTags() {

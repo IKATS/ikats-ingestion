@@ -1,6 +1,7 @@
 package fr.cs.ikats.ingestion.api;
 
 import java.util.HashMap;
+import java.util.List;
 
 public class ImportSessionDto {
 
@@ -11,24 +12,26 @@ public class ImportSessionDto {
 	/** Absolute root path of the dataset on the import server where files are located */
 	public String rootPath;
 	/**
-	 * Pattern rules for tags and metric of dataset and TS:<br>
+	 * Pattern rules for defining tags and metric of dataset:<br>
 	 * <ul>
-	 * <li>The path is described with path separators '/'.</li>
-	 * <li>The root of the absolute path is {@link ImportSessionDto.rootPath}
-	 * <li>The <b>metric</b> path part is described with <code>{metric}</code></li>
-	 * <li>A <b>time serie tag</b> is defined with <code>{tag:tagname}</code> where <code>tagname</code> is the name of the tag and the value, the real path part</li>
-	 * <li>An <b>optional time serie tag</b> is defined with <code>{optinal_tag:tagname:defval}</code> where <code>tagname</code> is the name of the tag and the value, the real path part and <code>defval</code> is the default value when tag not present</li>
+	 * <li>The path is described with a regex</li>
+	 * <li>The root of the absolute path is {@link ImportSessionDto.rootPath}, and is not included in the pattern
+	 * <li>The metric and tags should be matched into regex named groups</li>
+	 * <li>The regex <b>should have one metric</b> group defined with: <code>(?&lt;metric&gt;.*)</code></li>
+	 * <li>Each tag is defined with a regex group defined with: <code>(?&lt;tagname&gt;.*)</code></li>
 	 * </ul>
 	 * Examples :
 	 * <ol>
-	 * <li>For Airbus : <code>/DAR/{tag:AircraftIdentifier}/{metric}/raw_{tag:FlightIdentifier}.csv</code>
-	 * <li>For EDF : <code>/DAR/{tag:group}/{metric}_?{optinal_tag:level:good}.csv</code>
+	 * <li>For EDF : <code>"\/DAR\/(?&lt;equipement&gt;\w*)\/(?&lt;metric&gt;.*?)(?:_(?&lt;good&gt;bad|good))?\.csv"</code>
+	 * <li>For Airbus : <code>"\/DAR\/(?&lt;AircraftIdentifier&gt;\w*)\/(?&lt;metric&gt;.*?)/raw_(?&lt;FlightIdentifier&gt;.*)\.csv"</code>
 	 * </li>
 	 * </ol>
 	 */
 	public String pathPattern;
 	/** Dataset tags. Not used for now */
 	public HashMap<String, String> tags;
+	/** List of errors */
+	public List<String> errors;
 
 	public ImportSessionDto() {
 		super();

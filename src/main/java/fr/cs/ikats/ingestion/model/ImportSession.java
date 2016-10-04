@@ -1,5 +1,6 @@
 package fr.cs.ikats.ingestion.model;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -18,7 +19,7 @@ import fr.cs.ikats.ingestion.api.ImportSessionDto;
 
 //@RequestScoped
 public class ImportSession extends ImportSessionDto {
-
+	
 	@XmlElementWrapper(name = "toImport")
 	@JsonProperty(value = "toImport")
 	@XmlElement(name = "item")
@@ -34,13 +35,9 @@ public class ImportSession extends ImportSessionDto {
 	private ImportStatus status;
 	private Date startDate;
 	
-//	@XmlTransient
-//	@Inject private ModelManager modelManager;
-	
 	private Logger logger = LoggerFactory.getLogger(ImportSession.class);
 	
 	private ImportSession() {
-//		this.id = modelManager.importSessionSeqNext();
 		this.id = ModelManager.getInstance().importSessionSeqNext();
 	}
 	
@@ -102,6 +99,10 @@ public class ImportSession extends ImportSessionDto {
 	public String getRootPath() {
 		return super.rootPath;
 	}
+	
+	public String getPathPattern() {
+		return super.pathPattern;
+	}
 
 	public HashMap<String, String> getTags() {
 		return super.tags;
@@ -129,6 +130,14 @@ public class ImportSession extends ImportSessionDto {
 
 	public void setStatus(ImportStatus status) {
 		this.status = status;
+	}
+	
+	public void addError(String error) {
+		if (super.errors == null) {
+			super.errors = new ArrayList<String>();
+		}
+		
+		super.errors.add(error);
 	}
 
 }

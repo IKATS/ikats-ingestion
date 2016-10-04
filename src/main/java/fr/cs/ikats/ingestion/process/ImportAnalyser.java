@@ -2,25 +2,40 @@ package fr.cs.ikats.ingestion.process;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.helpers.FormattingTuple;
+import org.slf4j.helpers.MessageFormatter;
 
 import fr.cs.ikats.ingestion.api.ImportSessionDto;
 import fr.cs.ikats.ingestion.model.ImportItem;
 import fr.cs.ikats.ingestion.model.ImportSession;
 import fr.cs.ikats.ingestion.model.ImportStatus;
+import fr.cs.ikats.util.RegExUtils;
 
 public class ImportAnalyser implements Runnable {
 	
+	private static final String METRIC_REGEX_GROUPNAME = "metric";
+
 	private Logger logger = LoggerFactory.getLogger(ImportAnalyser.class);
 
 	private ImportSession session;
 
 	private IngestionProcess ingestionProcess;
+
+	private Pattern pathPatternCompiled;
+
+	private Map<String, Integer> namedGroups;
 	
 	public ImportAnalyser(IngestionProcess ingestionProcess, ImportSession session) {
 		this.ingestionProcess = ingestionProcess;
@@ -30,9 +45,40 @@ public class ImportAnalyser implements Runnable {
 	@Override
 	public void run() {
 		
+		// Check pathPattern parameter regarding regexp rules
+		try {
+			pathPatternCompiled = Pattern.compile(session.getPathPattern());
+		} catch (PatternSyntaxException pse) {
+			// Set session cancelled if we could not use the patter to filter the path
+			FormattingTuple arrayFormat = MessageFormatter.arrayFormat("Could not use pathPattern '{}' for session {} dataset {}", new Object[] { session.getPathPattern(), session.getId(), session.getDataset() });
+        	logger.error(arrayFormat.getMessage());
+        	session.addError(arrayFormat.getMessage()); 
+			session.setStatus(ImportStatus.CANCELLED);
+			// get out the run
+			return;
+		}
+		
+		// Check and store the regex groups names : will be tags names.
+		try {
+			namedGroups = RegExUtils.getNamedGroups(pathPatternCompiled);
+		} catch (NoSuchMethodException | SecurityException | IllegalAccessException | IllegalArgumentException
+				| InvocationTargetException e) {
+			
+			FormattingTuple arrayFormat = MessageFormatter.format("Could not get group names from pathPattern regexp for extracting tags. Exception message: '{}'", e.getMessage());
+			logger.error(arrayFormat.getMessage(), e);
+			session.addError(arrayFormat.getMessage()); 
+			session.setStatus(ImportStatus.CANCELLED);
+			// get out the run
+			return;
+		}
+		
+		// Finally walk over the directory tree to find the files matching our pathPattern regex and provide them as ImportItems with their tags. 
 		walkOverDataset();
+		
+		// We have analyzed the session and collected all the items to import. 
 		session.setStatus(ImportStatus.ANALYSED);
 		ingestionProcess.continueProcess();
+		
 	}
 
 	private void walkOverDataset() {
@@ -48,11 +94,10 @@ public class ImportAnalyser implements Runnable {
 		// Code base from http://rosettacode.org/wiki/Walk_a_directory/Recursively#Java
 		try {
 			Files.walk(root)
-			     .filter( path -> path.toFile().isFile())
-			     .filter( path -> testFilepath(path) )
-			     .forEach( path -> createImportSessionItem(path.toFile()) );
+				 .filter( path -> path.toFile().isFile() )
+				 .forEach( path -> createImportSessionItem(path.toFile()) );
 			
-			// note on Files nio API, and filters : sess explanations here :
+			// note on Files nio API, and filters : see explanations here :
 			// http://stackoverflow.com/questions/29316310/java-8-lambda-expression-for-filenamefilter/29316408#29316408
 		} catch (IOException e) {
 			// FIXME manage exception
@@ -61,32 +106,22 @@ public class ImportAnalyser implements Runnable {
 
 	}
 
-	/**
-	 * Based on the {@link ImportSessionDto.pathPattern} definition test if that is a file to keep as an ImportItem
-	 * @param path
-	 * @return true if path matches the {@link ImportSessionDto.pathPattern}
-	 */
-	private boolean testFilepath(Path path) {
-		// FIXME pour [#143948] revoir ce filter ou predicate à créer pour filtrer les fichiers correspondant à pathPattern
-
-		// code pour EDF ou airbus
-		boolean ok = true;
-		
-		String pathStr = path.toString();
-		//String relativePathStr = pathStr.substring(session.getRootPath().length() - 1);
-		
-		ok &= pathStr.endsWith(".csv");
-		ok &= path.getParent().getParent().toString().equals("DAR");
-		//ok &= relativePathStr.startsWith("/DAR/");
-		
-		return ok;
-	}
-
 	private void createImportSessionItem(File importFile) {
+		
+		// work only on the path relative to the import session root path
+		File relativePath = new File(importFile.getPath().substring(this.session.getRootPath().length()));
+		
+		Matcher matcher = pathPatternCompiled.matcher(relativePath.getPath());
+		if (!matcher.matches()) {
+			// the file is not compliant to the pattern, we exclude it.
+			return;
+		}
+		
+		// Create item with regard to the current file
 		ImportItem item = new ImportItem(this.session, importFile);
 
 		// extract metric and tags
-		extractMetricAndTags(item);
+		extractMetricAndTags(item, matcher);
 		
 		session.getItemsToImport().add(item);
 		logger.debug("File {} added to import session of dataset {}", importFile.getName(), session.getDataset());
@@ -95,14 +130,21 @@ public class ImportAnalyser implements Runnable {
 	/**
 	 * Based on the {@link ImportSessionDto.pathPattern} definition, extract and store metric and tags and metric
 	 * @param item the item on which extract metric and tags.
+	 * @param matcher the  
 	 */
-	private void extractMetricAndTags(ImportItem item) {
+	private void extractMetricAndTags(ImportItem item, Matcher matcher) {
 
-		// FIXME pour [#143948] code à remplacer pour la généricité de l'outil d'import
-		// parser item.File.getAbsolutePath() avec session.pathPattern
-		// remplir item.metric et item.tags en conséquence
+		HashMap<String, String> tagsMap = new HashMap<String, String>(namedGroups.size());
 		
-		// le code suivant permet just le parsing pour EDF.
+		// for each regex named group as a tag name, put the KV pair into the list of tags
+		for (String tagName : namedGroups.keySet()) {
+			// do not add the 'metric'
+			if (!tagName.equalsIgnoreCase(METRIC_REGEX_GROUPNAME)) {
+				tagsMap.put(tagName, matcher.group(tagName));
+			}
+		}
 		
+		item.setTags(tagsMap);
+		item.setMetric(matcher.group(METRIC_REGEX_GROUPNAME));
 	}
 }
