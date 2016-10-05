@@ -18,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import fr.cs.ikats.ingestion.api.ImportSessionDto;
+import fr.cs.ikats.ingestion.exception.IngestionRejectedException;
 import fr.cs.ikats.ingestion.model.ImportSession;
 import fr.cs.ikats.ingestion.model.ModelManager;
 import fr.cs.ikats.ingestion.process.IngestionProcess;
@@ -42,6 +43,8 @@ public class IngestionService {
 	private ManagedThreadFactory threadFactory;
 	
 	private Logger logger = LoggerFactory.getLogger(IngestionService.class);
+
+	private Thread newThread;
 
     // The @Startup annotation ensures that this method is
     // called when the application starts up.
@@ -109,8 +112,23 @@ public class IngestionService {
 	
 	private void startIngestionProcess(ImportSession newSession) {
 		
+		// launch only one import session
+		if (newThread != null && newThread.isAlive()) {
+			throw new IngestionRejectedException("A session is already in process (could only import one session at time)");
+		}
+		
+		// TODO in order to ensure fair usage of ExecutorPoolManager, future implementation should take care 
+		// of limiting the EPM instance in the scope one ImportItemTaskFactory.
+		// for that:
+		//   - EPM should not be a Singleton and should be instanciated at the ImportItemTaskFactory init with dedicated config
+		//   - OpenTsdbImportTaskFactory should be Singleton
+	    //   - ...
+		// Then that part of the process could run on multiple sessions and use an EPM to manage that.
+		
 		// Start processsing in a thread
-		threadFactory.newThread(new IngestionProcess(newSession, threadFactory, executorPoolManager)).start();
+		newThread = threadFactory.newThread(new IngestionProcess(newSession, threadFactory, executorPoolManager));
+		newThread.start();
+		
 	}
 	
 }

@@ -18,6 +18,7 @@ import org.slf4j.helpers.FormattingTuple;
 import org.slf4j.helpers.MessageFormatter;
 
 import fr.cs.ikats.ingestion.api.ImportSessionDto;
+import fr.cs.ikats.ingestion.exception.IngestionRuntimeException;
 import fr.cs.ikats.ingestion.model.ImportItem;
 import fr.cs.ikats.ingestion.model.ImportSession;
 import fr.cs.ikats.ingestion.model.ImportStatus;
@@ -86,8 +87,7 @@ public class ImportAnalyser implements Runnable {
 		Path root = FileSystems.getDefault().getPath(session.getRootPath());
 		if (!root.toFile().exists() || !root.toFile().isDirectory()) {
 			logger.error("Root path not accessible {}", session);
-			// FIXME manage exception
-			throw new RuntimeException("The root path " + session.getRootPath() + " doesn't exist for dataset " + session.getDataset());
+			throw new IngestionRuntimeException("The root path " + session.getRootPath() + " doesn't exist for dataset " + session.getDataset());
 		}
 		
 		// walk the tree directories to prepare the CSV files
@@ -100,8 +100,7 @@ public class ImportAnalyser implements Runnable {
 			// note on Files nio API, and filters : see explanations here :
 			// http://stackoverflow.com/questions/29316310/java-8-lambda-expression-for-filenamefilter/29316408#29316408
 		} catch (IOException e) {
-			// FIXME manage exception
-			throw new RuntimeException(e);
+			throw new IngestionRuntimeException(e);
 		}
 
 	}
