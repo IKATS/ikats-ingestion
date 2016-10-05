@@ -16,7 +16,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import fr.cs.ikats.ingestion.model.ImportItem;
-import fr.cs.ikats.ingestion.model.ImportResult;
 import fr.cs.ikats.ingestion.model.ImportSession;
 import fr.cs.ikats.ingestion.model.ImportStatus;
 
@@ -32,8 +31,8 @@ public class ImportSessionIngester implements Runnable {
 	private ImportItemTaskFactory importItemTaskFactory;
 
 	/** Synchronized list of ({@link Future}) tasks */
-	private List<Future<ImportResult>> submitedTasks = Collections
-			.synchronizedList(new ArrayList<Future<ImportResult>>());
+	private List<Future<ImportItem>> submitedTasks = Collections
+			.synchronizedList(new ArrayList<Future<ImportItem>>());
 	
 	private Logger logger = LoggerFactory.getLogger(ImportSessionIngester.class);
 
@@ -78,8 +77,8 @@ public class ImportSessionIngester implements Runnable {
 
 				// for each one create and submit and import task
 				if (importItem.getStatus() == ImportStatus.CREATED) { 
-					Callable<ImportResult> task = importItemTaskFactory.createTask(importItem);
-					Future<ImportResult> submitedTask = process.getExecutorPool().submit(task);
+					Callable<ImportItem> task = importItemTaskFactory.createTask(importItem);
+					Future<ImportItem> submitedTask = process.getExecutorPool().submit(task);
 					
 					if (submitedTask != null) {
 						// Add the future result to the results stack in
@@ -167,9 +166,9 @@ public class ImportSessionIngester implements Runnable {
 				synchronized (submitedTasks) {
 					
 					// unstack loop
-					ListIterator<Future<ImportResult>> iterator = submitedTasks.listIterator();
+					ListIterator<Future<ImportItem>> iterator = submitedTasks.listIterator();
 					while (iterator.hasNext()) {
-						Future<ImportResult> future = (Future<ImportResult>) iterator.next();
+						Future<ImportItem> future = (Future<ImportItem>) iterator.next();
 						if (!future.isDone()) {
 							logger.debug("Import task not finished and will be analysed in next loop: {}", future);
 							continue;
@@ -177,8 +176,7 @@ public class ImportSessionIngester implements Runnable {
 						
 						try {
 							// Future<>.get() : should be immediate as we have only done() tasks
-							ImportResult importResult = future.get();
-							ImportItem importItem = importResult.getImportItem();
+							ImportItem importItem = future.get();
 							
 							// Check the import item status and move item from toImport list 
 							// to one of the completed or erroneous list

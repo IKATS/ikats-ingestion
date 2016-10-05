@@ -1,8 +1,8 @@
 package fr.cs.ikats.ingestion.model;
 
 import java.io.File;
+import java.time.Instant;
 import java.util.HashMap;
-import java.util.concurrent.Future;
 
 import javax.xml.bind.Unmarshaller;
 import javax.xml.bind.annotation.XmlTransient;
@@ -11,6 +11,14 @@ import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import fr.cs.ikats.ingestion.process.ImportAnalyser;
+
+/**
+ * Provides and store information on each items for a data ingestion session.<br>
+ * <br>
+ * The ImportItem is prepared by the {@link ImportAnalyser} that provides it with target file, metric and tags list.<br>
+ * It is attached to the {@link ImportSession} and gets an {@link ImportResult} when import task as finished and  
+ */
 public class ImportItem {
 
 	private File file;
@@ -19,9 +27,8 @@ public class ImportItem {
 	private ImportStatus status;
 	@XmlTransient
 	private ImportSession importSession;
-	@XmlTransient
-	private Future<ImportResult> futureResult;
-	private ImportResult importResult;
+	private Instant startDate;
+	private Instant endDate;
 	
 	private Logger logger = LoggerFactory.getLogger(ImportItem.class);
 
@@ -87,21 +94,20 @@ public class ImportItem {
 	public void setStatus(ImportStatus status) {
 		this.status = status;
 	}
-	
-	public Future<ImportResult> getFutureResult() {
-		return futureResult;
+
+	public Instant getStartDate() {
+		return startDate;
 	}
-	
-	public void setFutureResult(Future<ImportResult> futureResult) {
-		this.futureResult = futureResult;
-	}
-	
-	public ImportResult getImportResult() {
-		return importResult;
+ 
+	public void setStartDate(Instant startDate) {
+		this.startDate = startDate;
 	}
 
-	public void setImportResult(ImportResult importResult) {
-		
+	public Instant getEndDate() {
+		return endDate;
 	}
-	
+
+	public void setEndDate(Instant endDate) {
+		this.endDate = endDate;
+	}
 }

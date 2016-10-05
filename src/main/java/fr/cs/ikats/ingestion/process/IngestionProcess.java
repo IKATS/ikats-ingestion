@@ -13,6 +13,8 @@ import org.glassfish.jersey.client.ClientConfig;
 import org.glassfish.jersey.media.multipart.MultiPartFeature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.helpers.FormattingTuple;
+import org.slf4j.helpers.MessageFormatter;
 
 import fr.cs.ikats.ingestion.model.ImportSession;
 import fr.cs.ikats.ingestion.model.ImportStatus;
@@ -64,7 +66,13 @@ public class IngestionProcess implements Runnable {
 					break;
 				case ANALYSED:
 					logger.info("Import session analysed: Dataset={}, Nb Items to import={}", session.getDataset(), session.getItemsToImport().size());
-					registerDataset(session);
+					if (session.getItemsToImport() != null && session.getItemsToImport().size() > 0) {
+						// Register the dataset if there is something to import.
+						registerDataset(session);
+					} else {
+						// Nothing to do : cancel the session
+						session.setStatus(ImportStatus.CANCELLED);
+					}
 					break;
 				case DATASET_REGISTERED:
 					logger.info("Datset {} registered in IKATS", session.getDataset());
@@ -147,7 +155,9 @@ public class IngestionProcess implements Runnable {
         	// Cancel the import session
         	session.setStatus(ImportStatus.RUNNING);
         } else {
-        	logger.error("Dataset {} not created as per TDM API response {}", session.getDataset(), response.getStatusInfo());
+        	FormattingTuple arrayFormat = MessageFormatter.arrayFormat("Dataset {} not created as per TDM API response {}", new Object[] {session.getDataset(), response.getStatusInfo()});
+        	logger.error(arrayFormat.getMessage());
+        	session.addError(arrayFormat.getMessage());        	
         	// Cancel the import session
         	session.setStatus(ImportStatus.CANCELLED);
         }
