@@ -44,8 +44,10 @@ public class ImportSession extends ImportSessionDto {
 	public ImportSession(ImportSessionDto simple) {
 		this();
 		this.dataset = simple.dataset;
+		this.description = simple.description;
 		this.rootPath = simple.rootPath;
 		this.pathPattern = simple.pathPattern;
+		this.importer = simple.importer;
 		this.tags = simple.tags;
 		this.status = ImportStatus.CREATED;
 	}
@@ -102,6 +104,10 @@ public class ImportSession extends ImportSessionDto {
 	
 	public String getPathPattern() {
 		return super.pathPattern;
+	}
+	
+	public String getImporter() {
+		return importer;
 	}
 
 	public HashMap<String, String> getTags() {

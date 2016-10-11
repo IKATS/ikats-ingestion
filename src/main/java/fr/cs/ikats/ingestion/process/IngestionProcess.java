@@ -16,6 +16,8 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.helpers.FormattingTuple;
 import org.slf4j.helpers.MessageFormatter;
 
+import fr.cs.ikats.ingestion.Configuration;
+import fr.cs.ikats.ingestion.IngestionConfig;
 import fr.cs.ikats.ingestion.model.ImportSession;
 import fr.cs.ikats.ingestion.model.ImportStatus;
 import fr.cs.ikats.util.concurrent.ExecutorPoolManager;
@@ -123,10 +125,9 @@ public class IngestionProcess implements Runnable {
 		// Create web client, form, and url to call TDM API 
         ClientConfig clientConfig = new ClientConfig();
         Client client = ClientBuilder.newClient(clientConfig);
-        String appUrl = "http://localhost"; // FIXME to be externalised in resource ?
+        String url = Configuration.formatProperty(IngestionConfig.IKATS_DATASET_API_URL, session.getDataset());
         
         // 1- try to find dataset
-        String url = appUrl + "/dataset/" + session.getDataset();
         Response response = client.target(url).request().get();
         
         if (response.getStatus() == Response.Status.OK.getStatusCode()) {
@@ -147,7 +148,7 @@ public class IngestionProcess implements Runnable {
         form.param("description", session.getDescription());
         form.param("tsuidList", "");
 
-        url = appUrl + "/dataset/import/" + session.getDataset();
+        url = Configuration.formatProperty(IngestionConfig.IKATS_DATASET_API_URL_2, session.getDataset());
         response = client.target(url).request().post(Entity.entity(form, MediaType.APPLICATION_FORM_URLENCODED_TYPE));
         
         if(response.getStatus() == Response.Status.CREATED.getStatusCode()) {

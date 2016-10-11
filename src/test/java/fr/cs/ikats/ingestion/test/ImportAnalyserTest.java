@@ -62,8 +62,15 @@ public class ImportAnalyserTest {
 		analyser.join();
 		
 		// Result 1: the session had to be analysed
-		Assert.assertTrue(importSession.getStatus() == ImportStatus.ANALYSED);
-		Assert.assertTrue(importSession.getItemsToImport().size() == nbMatchingFiles);
+		Assert.assertTrue("Import session is not is state ANALYSED", importSession.getStatus() == ImportStatus.ANALYSED);
+		// Result 2: the number of files in the path matching the pattern should be the same as those found in session "ItemsToImport" property
+		Assert.assertTrue("Number of expect files matching the pattern, not coherent", importSession.getItemsToImport().size() == nbMatchingFiles);
+		// Result 3: each item should have a metric
+		importSession.getItemsToImport().forEach( item -> {
+			Assert.assertTrue("Import item is not in CREATED state", item.getStatus() == ImportStatus.CREATED);
+			Assert.assertNotNull("Metric not found", item.getMetric());
+			Assert.assertNotNull("No tags for item", item.getTags());
+		});
 	}
 
 	

@@ -15,6 +15,8 @@ import javax.naming.NamingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import fr.cs.ikats.ingestion.Configuration;
+import fr.cs.ikats.ingestion.IngestionConfig;
 import fr.cs.ikats.ingestion.model.ImportItem;
 import fr.cs.ikats.ingestion.model.ImportSession;
 import fr.cs.ikats.ingestion.model.ImportStatus;
@@ -47,12 +49,14 @@ public class ImportSessionIngester implements Runnable {
 		this.session = session;
 
 		Context ctx = new InitialContext();
-		// Get OpenTSDB importer
-		// TODO for future implementations : find another way to lookup corresponding the ImportItemTaskFactory
-		// i.e. : 
-		//  - type attribute in ImportSession
-		//  - ...
-		importItemTaskFactory = (ImportItemTaskFactory) ctx.lookup("java:global/ikats-ingestion/OpenTsdbImportTaskFactory");
+		// Get the factory to import session items. The default test implementation is used if none found.
+		String taskFactoryFQN = session.getImporter();
+		if (taskFactoryFQN == null) {
+			taskFactoryFQN = (String) Configuration.getProperty(IngestionConfig.IKATS_DEFAULT_IMPORTITEM_TASK_FACTORY);
+		}
+		String taskFactoryName = taskFactoryFQN.substring(taskFactoryFQN.lastIndexOf('.') + 1);
+		
+		importItemTaskFactory = (ImportItemTaskFactory) ctx.lookup("java:global/ikats-ingestion/" + taskFactoryName);
 		logger.info("ImportItemTaskFactory injected as {}", importItemTaskFactory.getClass().getName());
 	}
 
