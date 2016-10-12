@@ -39,12 +39,14 @@ public class DefaultImportNothingTaskFactory implements ImportItemTaskFactory {
 
 		public ImportTask(ImportItem importItem) {
 			this.importItem = importItem;
+			this.importItem.setStatus(ImportStatus.ANALYSED);			
 		}
 
 		@Override
 		public ImportItem call() throws Exception {
-			logger.debug("DefaultImportNothingTaskFactory for {}", importItem);
+			logger.debug("Process {} for {}", getClass().getName(), importItem);
 			// Mark import item as cancelled
+			this.importItem.addError("Processed by " + getClass().getName());
 			this.importItem.setStatus(ImportStatus.CANCELLED);
 			return this.importItem;
 		}

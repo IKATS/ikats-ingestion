@@ -125,7 +125,7 @@ public class IngestionProcess implements Runnable {
 		// Create web client, form, and url to call TDM API 
         ClientConfig clientConfig = new ClientConfig();
         Client client = ClientBuilder.newClient(clientConfig);
-        String url = Configuration.formatProperty(IngestionConfig.IKATS_DATASET_API_URL, session.getDataset());
+        String url = Configuration.getInstance().formatProperty(IngestionConfig.IKATS_DATASET_API_URL, session.getDataset());
         
         // 1- try to find dataset
         Response response = client.target(url).request().get();
@@ -148,7 +148,7 @@ public class IngestionProcess implements Runnable {
         form.param("description", session.getDescription());
         form.param("tsuidList", "");
 
-        url = Configuration.formatProperty(IngestionConfig.IKATS_DATASET_API_URL_2, session.getDataset());
+        url = Configuration.getInstance().formatProperty(IngestionConfig.IKATS_DATASET_API_URL_2, session.getDataset());
         response = client.target(url).request().post(Entity.entity(form, MediaType.APPLICATION_FORM_URLENCODED_TYPE));
         
         if(response.getStatus() == Response.Status.CREATED.getStatusCode()) {

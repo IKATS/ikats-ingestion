@@ -2,7 +2,9 @@ package fr.cs.ikats.ingestion.model;
 
 import java.io.File;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 
 import javax.xml.bind.Unmarshaller;
 import javax.xml.bind.annotation.XmlTransient;
@@ -11,6 +13,7 @@ import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import fr.cs.ikats.datamanager.client.opentsdb.ImportResult;
 import fr.cs.ikats.ingestion.process.ImportAnalyser;
 
 /**
@@ -29,6 +32,7 @@ public class ImportItem {
 	private ImportSession importSession;
 	private Instant startDate;
 	private Instant endDate;
+	private List<String> errors;
 	
 	private Logger logger = LoggerFactory.getLogger(ImportItem.class);
 
@@ -95,6 +99,14 @@ public class ImportItem {
 		this.status = status;
 	}
 
+	public ImportSession getImportSession() {
+		return importSession;
+	}
+
+	public void setImportSession(ImportSession importSession) {
+		this.importSession = importSession;
+	}
+
 	public Instant getStartDate() {
 		return startDate;
 	}
@@ -110,4 +122,17 @@ public class ImportItem {
 	public void setEndDate(Instant endDate) {
 		this.endDate = endDate;
 	}
+
+	public List<String> getErrors() {
+		return errors;
+	}
+
+	public void addError(String error) {
+		if (errors == null) {
+			errors = new ArrayList<String>();
+		}
+		
+		errors.add(error);
+	}
+
 }

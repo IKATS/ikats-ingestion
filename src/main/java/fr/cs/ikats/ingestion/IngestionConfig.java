@@ -1,6 +1,8 @@
 package fr.cs.ikats.ingestion;
 
-public enum IngestionConfig {
+import fr.cs.ikats.util.configuration.ConfigProperties;
+
+public enum IngestionConfig implements ConfigProperties  {
 
 	// Properties values
 	IKATS_DATASET_API_URL("ikats.api.url.dataset"),
@@ -9,6 +11,9 @@ public enum IngestionConfig {
 	
 	// Filename
 	public final static String propertiesFile = "ingestion.properties";
+	
+	// Mandatory default constructor
+	IngestionConfig() {};
 
 	private String propertyName;
 	private String defaultValue;
@@ -29,5 +34,9 @@ public enum IngestionConfig {
 
 	public String getDefaultValue() {
 		return defaultValue;
+	}
+
+	public String getPropertiesFilename() {
+		return propertiesFile;
 	}
 }

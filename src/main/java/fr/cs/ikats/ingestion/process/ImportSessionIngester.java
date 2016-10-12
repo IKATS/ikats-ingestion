@@ -52,7 +52,7 @@ public class ImportSessionIngester implements Runnable {
 		// Get the factory to import session items. The default test implementation is used if none found.
 		String taskFactoryFQN = session.getImporter();
 		if (taskFactoryFQN == null) {
-			taskFactoryFQN = (String) Configuration.getProperty(IngestionConfig.IKATS_DEFAULT_IMPORTITEM_TASK_FACTORY);
+			taskFactoryFQN = (String) Configuration.getInstance().getProperty(IngestionConfig.IKATS_DEFAULT_IMPORTITEM_TASK_FACTORY);
 		}
 		String taskFactoryName = taskFactoryFQN.substring(taskFactoryFQN.lastIndexOf('.') + 1);
 		
