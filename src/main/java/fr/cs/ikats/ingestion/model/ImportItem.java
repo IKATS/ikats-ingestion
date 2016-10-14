@@ -10,6 +10,7 @@ import javax.xml.bind.Unmarshaller;
 import javax.xml.bind.annotation.XmlTransient;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringExclude;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,13 +27,20 @@ public class ImportItem {
 
 	private File file;
 	private String metric;
+	private String tsuid;
+	private String funcId;
 	private HashMap<String, String> tags;
-	private ImportStatus status;
-	@XmlTransient
-	private ImportSession importSession;
 	private Instant startDate;
 	private Instant endDate;
+	private ImportStatus status;
+	@ToStringExclude
+	@XmlTransient
+	private ImportSession importSession;
 	private List<String> errors;
+	private Instant importStartDate;
+	private Instant importEndDate;
+    private long numberOfSuccess = 0;
+    private long numberOfFailed = 0;
 	
 	private Logger logger = LoggerFactory.getLogger(ImportItem.class);
 
@@ -83,12 +91,47 @@ public class ImportItem {
 		this.metric = metric;
 	}
 
+	public String getTsuid() {
+		return tsuid;
+	}
+
+	public void setTsuid(String tsuid) {
+		this.tsuid = tsuid;
+	}
+
+	public String getFuncId() {
+		return funcId;
+	}
+
+	public void setFuncId(String funcId) {
+		this.funcId = funcId;
+	}
+
 	public HashMap<String, String> getTags() {
+		if (this.tags == null) {
+			this.tags = new HashMap<String, String>();
+		}
 		return tags;
 	}
 
 	public void setTags(HashMap<String, String> tags) {
 		this.tags = tags;
+	}
+
+	public Instant getStartDate() {
+		return startDate;
+	}
+
+	public void setStartDate(Instant startDate) {
+		this.startDate = startDate;
+	}
+
+	public Instant getEndDate() {
+		return endDate;
+	}
+
+	public void setEndDate(Instant endDate) {
+		this.endDate = endDate;
 	}
 
 	public ImportStatus getStatus() {
@@ -107,22 +150,6 @@ public class ImportItem {
 		this.importSession = importSession;
 	}
 
-	public Instant getStartDate() {
-		return startDate;
-	}
- 
-	public void setStartDate(Instant startDate) {
-		this.startDate = startDate;
-	}
-
-	public Instant getEndDate() {
-		return endDate;
-	}
-
-	public void setEndDate(Instant endDate) {
-		this.endDate = endDate;
-	}
-
 	public List<String> getErrors() {
 		return errors;
 	}
@@ -135,4 +162,36 @@ public class ImportItem {
 		errors.add(error);
 	}
 
+	public Instant getImportStartDate() {
+		return importStartDate;
+	}
+
+	public void setImportStartDate(Instant importStartDate) {
+		this.importStartDate = importStartDate;
+	}
+
+	public Instant getImportEndDate() {
+		return importEndDate;
+	}
+
+	public void setImportEndDate(Instant importEndDate) {
+		this.importEndDate = importEndDate;
+	}
+
+	public long getNumberOfSuccess() {
+		return numberOfSuccess;
+	}
+
+	public void addNumberOfSuccess(long numberOfSuccess) {
+		this.numberOfSuccess += numberOfSuccess;
+	}
+
+	public long getNumberOfFailed() {
+		return numberOfFailed;
+	}
+
+	public void addNumberOfFailed(long numberOfFailed) {
+		this.numberOfFailed += numberOfFailed;
+	}
+	
 }

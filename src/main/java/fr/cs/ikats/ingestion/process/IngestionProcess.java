@@ -1,25 +1,17 @@
 package fr.cs.ikats.ingestion.process;
 
+import java.util.ArrayList;
+
 import javax.enterprise.concurrent.ManagedThreadFactory;
 import javax.naming.NamingException;
-import javax.ws.rs.client.Client;
-import javax.ws.rs.client.ClientBuilder;
-import javax.ws.rs.client.Entity;
-import javax.ws.rs.core.Form;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
 
-import org.glassfish.jersey.client.ClientConfig;
-import org.glassfish.jersey.media.multipart.MultiPartFeature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.helpers.FormattingTuple;
-import org.slf4j.helpers.MessageFormatter;
 
-import fr.cs.ikats.ingestion.Configuration;
-import fr.cs.ikats.ingestion.IngestionConfig;
+import fr.cs.ikats.common.dao.exception.IkatsDaoException;
 import fr.cs.ikats.ingestion.model.ImportSession;
 import fr.cs.ikats.ingestion.model.ImportStatus;
+import fr.cs.ikats.ts.dataset.DataSetFacade;
 import fr.cs.ikats.util.concurrent.ExecutorPoolManager;
 
 public class IngestionProcess implements Runnable {
@@ -30,6 +22,7 @@ public class IngestionProcess implements Runnable {
 	private Object waiter = new Object();
 	
 	private Logger logger = LoggerFactory.getLogger(IngestionProcess.class);
+	private DataSetFacade dataSetFacade;
 
 	public IngestionProcess(ImportSession session, ManagedThreadFactory threadFactory, ExecutorPoolManager executorPoolManager) {
 		this.threadFactory = threadFactory;
@@ -42,6 +35,13 @@ public class IngestionProcess implements Runnable {
 	 */
 	public ExecutorPoolManager getExecutorPool() {
 		return executorPoolManager;
+	}
+	
+	/**
+	 * @return the dataset facade service
+	 */
+	public DataSetFacade getDatasetService() {
+		return dataSetFacade;
 	}
 
 	@Override
@@ -103,6 +103,7 @@ public class IngestionProcess implements Runnable {
 			try {
 				// Lock that thread until notification to restart by a subprocess
 				synchronized (waiter) {
+					// TODO put a timeout in the wait.
 					waiter.wait();
 				}
 			} catch (InterruptedException ie) {
@@ -120,48 +121,65 @@ public class IngestionProcess implements Runnable {
 		}
 	}
 
+	/**
+	 * Register the dataset from the session
+	 * @param session
+	 */
 	private void registerDataset(ImportSession session) {
-
-		// Create web client, form, and url to call TDM API 
-        ClientConfig clientConfig = new ClientConfig();
-        Client client = ClientBuilder.newClient(clientConfig);
-        String url = Configuration.getInstance().formatProperty(IngestionConfig.IKATS_DATASET_API_URL, session.getDataset());
-        
-        // 1- try to find dataset
-        Response response = client.target(url).request().get();
-        
-        if (response.getStatus() == Response.Status.OK.getStatusCode()) {
-        	logger.info("Dataset {} exists, will be updated with session import (id {})", session.getDataset(), session.getId());
-        	return;
-        }
-        // ELSE
-        
-        // 2- if dataset doesn't exists, create it with no list of tsuid
-        // http://localhost/TemporalDataManagerWebApp/dataset/import/{dataset}
-        // Form data : 
-        //   - tsuidList (empty)
-        //   - description
-        clientConfig.register(MultiPartFeature.class);
-        client = ClientBuilder.newClient(clientConfig);
-        
-        Form form = new Form();
-        form.param("description", session.getDescription());
-        form.param("tsuidList", "");
-
-        url = Configuration.getInstance().formatProperty(IngestionConfig.IKATS_DATASET_API_URL_2, session.getDataset());
-        response = client.target(url).request().post(Entity.entity(form, MediaType.APPLICATION_FORM_URLENCODED_TYPE));
-        
-        if(response.getStatus() == Response.Status.CREATED.getStatusCode()) {
-        	logger.info("Dataset {} registered by import in session id {}", session.getDataset(), session.getId());
-        	// Cancel the import session
-        	session.setStatus(ImportStatus.RUNNING);
-        } else {
-        	FormattingTuple arrayFormat = MessageFormatter.arrayFormat("Dataset {} not created as per TDM API response {}", new Object[] {session.getDataset(), response.getStatusInfo()});
-        	logger.error(arrayFormat.getMessage());
-        	session.addError(arrayFormat.getMessage());        	
-        	// Cancel the import session
-        	session.setStatus(ImportStatus.CANCELLED);
-        }
+		
+		try {
+			dataSetFacade = new DataSetFacade();
+			dataSetFacade.persistDataSet(session.getDataset(), session.getDescription(), new ArrayList<String>(0));
+			session.setStatus(ImportStatus.RUNNING);
+		} catch (IkatsDaoException e) {
+			String message = "Can't persist dataset '" + session.getDataset() + "' for import session " + session.getId() + " ; session=" + session;
+			session.addError(message);
+			session.addError(e.getMessage());
+			logger.error(message, e);
+		}
+		
+//		
+//
+//		// Create web client, form, and url to call TDM API 
+//        ClientConfig clientConfig = new ClientConfig();
+//        Client client = ClientBuilder.newClient(clientConfig);
+//        String url = Configuration.getInstance().formatProperty(IngestionConfig.IKATS_DATASET_API_URL, session.getDataset());
+//        
+//        // 1- try to find dataset
+//        Response response = client.target(url).request().get();
+//        
+//        if (response.getStatus() == Response.Status.OK.getStatusCode()) {
+//        	logger.info("Dataset {} exists, will be updated with session import (id {})", session.getDataset(), session.getId());
+//        	return;
+//        }
+//        // ELSE
+//        
+//        // 2- if dataset doesn't exists, create it with no list of tsuid
+//        // http://localhost/TemporalDataManagerWebApp/dataset/import/{dataset}
+//        // Form data : 
+//        //   - tsuidList (empty)
+//        //   - description
+//        clientConfig.register(MultiPartFeature.class);
+//        client = ClientBuilder.newClient(clientConfig);
+//        
+//        Form form = new Form();
+//        form.param("description", session.getDescription());
+//        form.param("tsuidList", "");
+//
+//        url = Configuration.getInstance().formatProperty(IngestionConfig.IKATS_DATASET_API_URL_2, session.getDataset());
+//        response = client.target(url).request().post(Entity.entity(form, MediaType.APPLICATION_FORM_URLENCODED_TYPE));
+//        
+//        if(response.getStatus() == Response.Status.CREATED.getStatusCode()) {
+//        	logger.info("Dataset {} registered by import in session id {}", session.getDataset(), session.getId());
+//        	// Cancel the import session
+//        	session.setStatus(ImportStatus.RUNNING);
+//        } else {
+//        	FormattingTuple arrayFormat = MessageFormatter.arrayFormat("Dataset {} not created as per TDM API response {}", new Object[] {session.getDataset(), response.getStatusInfo()});
+//        	logger.error(arrayFormat.getMessage());
+//        	session.addError(arrayFormat.getMessage());        	
+//        	// Cancel the import session
+//        	session.setStatus(ImportStatus.CANCELLED);
+//        }
 	}
 
 }

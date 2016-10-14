@@ -14,6 +14,11 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.powermock.core.classloader.annotations.PowerMockIgnore;
+import org.powermock.core.classloader.annotations.PrepareForTest;
+import org.powermock.modules.junit4.PowerMockRunner;
+import static org.powermock.api.mockito.PowerMockito.*;
 
 import fr.cs.ikats.ingestion.api.ImportSessionDto;
 import fr.cs.ikats.ingestion.model.ImportItem;
@@ -23,6 +28,10 @@ import fr.cs.ikats.ingestion.process.ImportSessionIngester;
 import fr.cs.ikats.ingestion.process.IngestionProcess;
 import fr.cs.ikats.util.concurrent.ExecutorPoolManager;
 
+@RunWith(PowerMockRunner.class)
+// Ignore standards framework classes and the IKATS class model in order to avoid PowerMock create objects and confusing Hibernate 
+@PowerMockIgnore({"com.sun.*", "java.lang.*", "javax.*", "org.*", "fr.cs.ikats.ts.*", "fr.cs.ikats.metadata.*"})
+@PrepareForTest(ImportSessionIngester.ImportItemAnalyserThread.class)
 public class ImportSessionIngesterTest {
 
     private static EJBContainer ejbContainer;
@@ -42,16 +51,11 @@ public class ImportSessionIngesterTest {
      */
     @BeforeClass
     public static void init() throws NamingException {
-//        Map<String, Object> properties = new HashMap<String, Object>();
-//        properties.put(EJBContainer.MODULES, new File("target/classes"));
-//        ejbContainer = EJBContainer.createEJBContainer(properties);
+    	// Start EJB Container
         ejbContainer = EJBContainer.createEJBContainer();
+        
+        // Get the executor pool from container to manage the import threads
         Context ctx = ejbContainer.getContext();
-
-        // le nom JNDI d'un EJB dépend du serveur d'applications utilisé :
-        // jboss     : "HelloWorldService/local"
-        // glassfish : "java:global/classes.ext/HelloWorldService"
-        // 
         String executorPoolManagerServiceName = "java:global/ikats-ingestion/" + ExecutorPoolManager.class.getSimpleName();
         executorPoolManager = (ExecutorPoolManager) ctx.lookup(executorPoolManagerServiceName);
     }
@@ -66,9 +70,15 @@ public class ImportSessionIngesterTest {
 	}
 
 	@Test
+	@PowerMockIgnore()
 	public void testRunThread() throws InterruptedException, NamingException {
 		
-		int nbItemsToImport = 50;
+		// Mock : do not execute the following method during test
+		suppress(method(ImportSessionIngester.ImportItemAnalyserThread.class, "registerFunctionalIdent"));
+		suppress(method(ImportSessionIngester.ImportItemAnalyserThread.class, "registerMetadata"));
+		suppress(method(ImportSessionIngester.ImportItemAnalyserThread.class, "registerTsuidsInDataset"));
+		
+		int nbItemsToImport = 10;
 		int nbItemsImported = 0;
 		
 		// -- Create an import session

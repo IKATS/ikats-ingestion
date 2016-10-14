@@ -12,7 +12,7 @@ import fr.cs.ikats.ingestion.api.Sessions;
 /**
  * Main application class.
  *
- * @author Jonathan Benoit
+ * @author ftoral
  */
 @ApplicationPath("/api/*")
 public class IngestionApplication extends Application {

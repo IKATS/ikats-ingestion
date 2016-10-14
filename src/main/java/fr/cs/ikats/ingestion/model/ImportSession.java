@@ -2,7 +2,6 @@ package fr.cs.ikats.ingestion.model;
 
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -17,7 +16,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 import fr.cs.ikats.ingestion.api.ImportSessionDto;
 
-//@RequestScoped
 public class ImportSession extends ImportSessionDto {
 	
 	@XmlElementWrapper(name = "toImport")
@@ -34,6 +32,11 @@ public class ImportSession extends ImportSessionDto {
 	private CopyOnWriteArrayList<ImportItem> itemsInError = new CopyOnWriteArrayList<ImportItem>();;
 	private ImportStatus status;
 	private Date startDate;
+	/** List of errors */
+	@XmlElementWrapper(name = "errors")
+	@JsonProperty(value = "errors")
+	@XmlElement(name = "message")	
+	public List<String> errors;
 	
 	private Logger logger = LoggerFactory.getLogger(ImportSession.class);
 	
@@ -48,7 +51,7 @@ public class ImportSession extends ImportSessionDto {
 		this.rootPath = simple.rootPath;
 		this.pathPattern = simple.pathPattern;
 		this.importer = simple.importer;
-		this.tags = simple.tags;
+		this.serializer = simple.serializer;
 		this.status = ImportStatus.CREATED;
 	}
 	
@@ -105,13 +108,17 @@ public class ImportSession extends ImportSessionDto {
 	public String getPathPattern() {
 		return super.pathPattern;
 	}
+
+	public String getFuncIdPattern() {
+		return super.funcIdPattern;
+	}
 	
 	public String getImporter() {
-		return importer;
+		return super.importer;
 	}
 
-	public HashMap<String, String> getTags() {
-		return super.tags;
+	public String getSerializer() {
+		return super.serializer;
 	}
 
 	public Date getStartDate() {
@@ -139,11 +146,11 @@ public class ImportSession extends ImportSessionDto {
 	}
 	
 	public void addError(String error) {
-		if (super.errors == null) {
-			super.errors = new ArrayList<String>();
+		if (errors == null) {
+			errors = new ArrayList<String>();
 		}
 		
-		super.errors.add(error);
+		errors.add(error);
 	}
 
 }

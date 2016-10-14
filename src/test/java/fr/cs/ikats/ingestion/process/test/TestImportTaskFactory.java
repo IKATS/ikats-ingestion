@@ -48,11 +48,11 @@ public class TestImportTaskFactory implements ImportItemTaskFactory {
 		@Override
 		public ImportItem call() throws Exception {
 			this.importItem.setStartDate(Instant.now());
-			logger.info("Importing {}", importItem.getFile());
+			logger.info("Importing {} (2.5sec delay)", importItem.getFile());
 			importItem.setStatus(ImportStatus.RUNNING);
-			Thread.sleep(5000);
+			Thread.sleep(2500);
 			this.importItem.setEndDate(Instant.now());
-			importItem.setStatus(ImportStatus.COMPLETED);
+			importItem.setStatus(ImportStatus.IMPORTED);
 			return this.importItem;
 		}
 			

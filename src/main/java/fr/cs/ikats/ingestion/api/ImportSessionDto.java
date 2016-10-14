@@ -1,7 +1,6 @@
 package fr.cs.ikats.ingestion.api;
 
-import java.util.HashMap;
-import java.util.List;
+import org.apache.commons.lang3.text.StrSubstitutor;
 
 import fr.cs.ikats.ingestion.IngestionConfig;
 
@@ -9,15 +8,19 @@ public class ImportSessionDto {
 
 	/** Optional for client requests : only used with API calls for info on session or to change session state */
 	public int id;
+	
 	public String dataset;
+	
 	public String description;
+	
 	/** Absolute root path of the dataset on the import server where files are located */
 	public String rootPath;
+	
 	/**
 	 * Pattern rules for defining tags and metric of dataset:<br>
 	 * <ul>
 	 * <li>The path is described with a regex</li>
-	 * <li>The root of the absolute path is {@link ImportSessionDto.rootPath}, and is not included in the pattern
+	 * <li>The root of the absolute path is {@link ImportSessionDto#rootPath}, and is not included in the pattern
 	 * <li>The metric and tags should be matched into regex named groups</li>
 	 * <li>The regex <b>should have one metric</b> group defined with: <code>(?&lt;metric&gt;.*)</code></li>
 	 * <li>Each tag is defined with a regex group defined with: <code>(?&lt;tagname&gt;.*)</code></li>
@@ -30,6 +33,19 @@ public class ImportSessionDto {
 	 * </ol>
 	 */
 	public String pathPattern;
+	
+	/**
+	 * Pattern for the Functional Identifier.<br>
+	 * Follow Apache Commons Lang {@link StrSubstitutor} variable format, with tags names / 'metric' as variables names.<br>
+	 * <br>
+	 * Examples :
+	 * <ol>
+	 * <li>For EDF : <code></code></li>
+	 * <li>For Airbus : <code>${AircraftIdentifier}_${FlightIdentifier}_${metric}</code></li>
+	 * </ol>
+	 */
+	public String funcIdPattern;
+	
 	/**
 	 * <strong>OPTIONAL</strong><br>
 	 * Fully Qualified Name of the java importer used to transfer the Time-Serie data to the IKATS dedicated database.<br>
@@ -44,10 +60,17 @@ public class ImportSessionDto {
 	 * </ul>
 	 */
 	public String importer;
-	/** Dataset tags. Not used for now */
-	public HashMap<String, String> tags;
-	/** List of errors */
-	public List<String> errors;
+	
+	/** 
+	 * Set the Fully Qualified Name of the input serializer<br>
+	 * Available parsers are:
+	 * <ul>
+	 * <li><code>fr.cs.ikats.datamanager.client.opentsdb.importer.CommonDataJsonIzer</code></li>
+	 * <li><code>fr.cs.ikats.datamanager.client.opentsdb.importer.AirbusDataJsonIzer</code></li>
+	 * <li><code>fr.cs.ikats.datamanager.client.opentsdb.importer.EDFDataJsonIzer</code></li>
+	 * </ul>
+	 */
+	public String serializer;
 
 	public ImportSessionDto() {
 		super();
