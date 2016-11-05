@@ -3,8 +3,6 @@ package fr.cs.ikats.ingestion.process.test;
 import java.time.Instant;
 import java.util.concurrent.Callable;
 
-import javax.ejb.Stateless;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,7 +14,6 @@ import fr.cs.ikats.ingestion.process.ImportItemTaskFactory;
  * Factory which creates a test import task 
  * @author ftoral
  */
-@Stateless
 public class TestImportTaskFactory implements ImportItemTaskFactory {
 
 	private Logger logger = LoggerFactory.getLogger(TestImportTaskFactory.class);

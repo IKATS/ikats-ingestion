@@ -71,7 +71,7 @@ public class ImportSessionIngesterTest {
 
 	@Test
 	@PowerMockIgnore()
-	public void testRunThread() throws InterruptedException, NamingException {
+	public void testRunThread() throws InterruptedException, ClassNotFoundException, InstantiationException, IllegalAccessException {
 		
 		// Mock : do not execute the following method during test
 		suppress(method(ImportSessionIngester.ImportItemAnalyserThread.class, "registerFunctionalIdent"));

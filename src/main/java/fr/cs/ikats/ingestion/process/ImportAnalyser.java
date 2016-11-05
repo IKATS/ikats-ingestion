@@ -32,14 +32,11 @@ public class ImportAnalyser implements Runnable {
 
 	private ImportSession session;
 
-	private IngestionProcess ingestionProcess;
-
 	private Pattern pathPatternCompiled;
 
 	private Map<String, Integer> namedGroups;
 	
-	public ImportAnalyser(IngestionProcess ingestionProcess, ImportSession session) {
-		this.ingestionProcess = ingestionProcess;
+	public ImportAnalyser(ImportSession session) {
 		this.session = session;
 	}
 
@@ -78,15 +75,17 @@ public class ImportAnalyser implements Runnable {
 		
 		// We have analyzed the session and collected all the items to import. 
 		session.setStatus(ImportStatus.ANALYSED);
-		ingestionProcess.continueProcess();
-		
+
 	}
 
 	private void walkOverDataset() {
 		
 		Path root = FileSystems.getDefault().getPath(session.getRootPath());
 		if (!root.toFile().exists() || !root.toFile().isDirectory()) {
-			logger.error("Root path not accessible {}", session);
+			FormattingTuple arrayFormat = MessageFormatter.format("Root path not accessible {}", session);
+			logger.error(arrayFormat.getMessage());
+			session.addError(arrayFormat.getMessage()); 
+			session.setStatus(ImportStatus.CANCELLED);
 			throw new IngestionRuntimeException("The root path " + session.getRootPath() + " doesn't exist for dataset " + session.getDataset());
 		}
 		

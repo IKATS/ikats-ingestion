@@ -1,5 +1,9 @@
 package fr.cs.ikats.ingestion.process.opentsdb;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Map;
@@ -8,8 +12,6 @@ import java.util.concurrent.Callable;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.ejb.EJB;
-import javax.ejb.Stateless;
 import javax.ws.rs.core.Response;
 
 import org.slf4j.Logger;
@@ -27,22 +29,17 @@ import fr.cs.ikats.datamanager.client.opentsdb.ResponseParser;
 import fr.cs.ikats.ingestion.exception.IngestionException;
 import fr.cs.ikats.ingestion.model.ImportItem;
 import fr.cs.ikats.ingestion.model.ImportStatus;
-import fr.cs.ikats.ingestion.process.ImportItemTaskFactory;
-import fr.cs.ikats.ingestion.serializer.ImportSerializerFactory;
+import fr.cs.ikats.ingestion.process.AbstractImportTaskFactory;
 import fr.cs.ikats.util.configuration.ConfigProperties;
 import fr.cs.ikats.util.configuration.IkatsConfiguration;
 
 /**
- * Factory which creates OpenTSDB import task 
+ * Factory which creates an OpenTSDB import task 
  * 
  * @author ftoral
  */
-@Stateless
-public class OpenTsdbImportTaskFactory implements ImportItemTaskFactory {
+public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 
-	@EJB
-	private ImportSerializerFactory importSerializerFactory;
-	
 	private final static IkatsConfiguration<ConfigProps> config = new IkatsConfiguration<ConfigProps>(ConfigProps.class);
 	
     private final static Pattern tsuidPattern = Pattern.compile(".*tsuids\":\\[\"(\\w*)\"\\].*");
@@ -55,10 +52,9 @@ public class OpenTsdbImportTaskFactory implements ImportItemTaskFactory {
 	private Logger logger = LoggerFactory.getLogger(OpenTsdbImportTaskFactory.class);
 
 	public OpenTsdbImportTaskFactory() {
-		IMPORT_NB_POINTS_BY_BATCH = (int) config.getProperty(ConfigProps.IMPORT_CHUNK_SIZE);
+		IMPORT_NB_POINTS_BY_BATCH = (int) config.getInt(ConfigProps.IMPORT_CHUNK_SIZE);
 	}
-
-	@Override
+		
 	public Callable<ImportItem> createTask(ImportItem item) {
 		ImportTask task = new ImportTask(item);
 		return task;
@@ -81,7 +77,10 @@ public class OpenTsdbImportTaskFactory implements ImportItemTaskFactory {
 		public ImportItem call() {
 
 			try {
-				IImportSerializer jsonizer = importSerializerFactory.getSerializer(this.importItem);
+				IImportSerializer jsonizer = (IImportSerializer) getSerializer(this.importItem);
+				
+				// PREREQ- Initialize the reader/jsonizer
+				initJsonizer(jsonizer, importItem);
 
 				// Set import running for that item.
 				importItem.setStatus(ImportStatus.RUNNING);
@@ -102,9 +101,9 @@ public class OpenTsdbImportTaskFactory implements ImportItemTaskFactory {
 				importItem.setStartDate(Instant.ofEpochMilli(jsonizer.getDates()[0]));
 				importItem.setEndDate(Instant.ofEpochMilli(jsonizer.getDates()[1]));
 
-			} catch (IngestionException | IOException | DataManagerException | IkatsWebClientException e) {
-				FormattingTuple arrayFormat = MessageFormatter.format("Error while processing item for file {} ",
-						importItem.getFile().toString());
+			// } catch (IngestionException | IOException | DataManagerException | IkatsWebClientException e) {
+			} catch (Exception e) {
+				FormattingTuple arrayFormat = MessageFormatter.format("Error while processing item for file {} ",importItem.getFile().toString());
 				logger.error(arrayFormat.getMessage(), e);
 				importItem.addError(e.getMessage());
 				importItem.setStatus(ImportStatus.CANCELLED);
@@ -113,6 +112,26 @@ public class OpenTsdbImportTaskFactory implements ImportItemTaskFactory {
 			// the import item was provided with all its new properties
 			return this.importItem;
 
+		}
+
+		/**
+		 * Initialize the reader / jsonizer
+		 * @param jsonizer
+		 * @param importItem
+		 */
+		private void initJsonizer(IImportSerializer jsonizer, ImportItem importItem) {
+			
+			try {
+				File itemFile = importItem.getFile();
+				BufferedReader bufferedReader = new BufferedReader(new FileReader(itemFile));
+				
+				jsonizer.init(bufferedReader, itemFile.getPath(), importItem.getMetric(), importItem.getTags());
+				
+			} catch (FileNotFoundException e) {
+				// should not be reached
+				logger.error("File not found", e);
+			}
+			
 		}
 
 		/**

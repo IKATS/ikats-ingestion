@@ -13,8 +13,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
-import javax.naming.Context;
-import javax.naming.InitialContext;
+import javax.ejb.Stateless;
 import javax.naming.NamingException;
 
 import org.apache.commons.lang3.text.StrSubstitutor;
@@ -30,6 +29,7 @@ import fr.cs.ikats.ingestion.model.ImportStatus;
 import fr.cs.ikats.metadata.MetaDataFacade;
 import fr.cs.ikats.ts.dataset.DataSetFacade;
 
+@Stateless
 public class ImportSessionIngester implements Runnable {
 
 	private static int REGISTER_TSUID_DATASET_BATCH_SIZE = 0;
@@ -52,30 +52,42 @@ public class ImportSessionIngester implements Runnable {
 	private String funcIdPattern;
 	
 	private Logger logger = LoggerFactory.getLogger(ImportSessionIngester.class);
-
+	
+	@SuppressWarnings("unused")
+	private ImportSessionIngester() {
+		
+	}
+	
 	/**
 	 * 
 	 * @param ingestionProcess
 	 * @param session
 	 * @throws NamingException
+	 * @throws ClassNotFoundException 
+	 * @throws IllegalAccessException 
+	 * @throws InstantiationException 
 	 */
-	public ImportSessionIngester(IngestionProcess ingestionProcess, ImportSession session) throws NamingException {
+	public ImportSessionIngester(IngestionProcess ingestionProcess, ImportSession session) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
 		this.process = ingestionProcess;
 		this.session = session;
 		this.funcIdPattern = session.getFuncIdPattern();
 
-		Context ctx = new InitialContext();
 		// Get the factory to import session items. The default test implementation is used if none found.
 		String taskFactoryFQN = session.getImporter();
 		if (taskFactoryFQN == null) {
 			taskFactoryFQN = (String) Configuration.getInstance().getProperty(IngestionConfig.IKATS_DEFAULT_IMPORTITEM_TASK_FACTORY);
 		}
-		String taskFactoryName = taskFactoryFQN.substring(taskFactoryFQN.lastIndexOf('.') + 1);
+//		String taskFactoryName = taskFactoryFQN.substring(taskFactoryFQN.lastIndexOf('.') + 1);
 		
-		importItemTaskFactory = (ImportItemTaskFactory) ctx.lookup("java:global/ikats-ingestion/" + taskFactoryName);
+//		Context ctx = new InitialContext();
+//		importItemTaskFactory = (ImportItemTaskFactory) ctx.lookup("java:global/ikats-ingestion/" + taskFactoryName);
+		
+//		Class<?> importItemTaskFactoryClazz = Class.forName(taskFactoryFQN, false, this.getClass().getClassLoader()); 
+		Class<?> importItemTaskFactoryClazz = getClass().getClassLoader().loadClass(taskFactoryFQN); 
+		importItemTaskFactory = (ImportItemTaskFactory) importItemTaskFactoryClazz.newInstance();
 		logger.info("ImportItemTaskFactory injected as {}", importItemTaskFactory.getClass().getName());
-
-		// Instaciate the facade for metadata creation 
+		
+		// Instance the facade for metadata creation 
 		metaDataFacade = new MetaDataFacade();
 
 		REGISTER_TSUID_DATASET_BATCH_SIZE = (int) Configuration.getInstance().getInt(IngestionConfig.IKATS_INGESTER_TSUIDTODATASET_BATCH);
@@ -139,8 +151,6 @@ public class ImportSessionIngester implements Runnable {
 			logger.error("Interrupted while waiting importItemAnalyserThread to finish", ie);
 		}
 
-		// Notify parent that process is finished
-		process.continueProcess();
 	}
 
 	/**
@@ -168,7 +178,7 @@ public class ImportSessionIngester implements Runnable {
 
 		/** State of the thread */
 		private ImportItemAnalyserState state = ImportItemAnalyserState.INIT;
-		private List<String> tsuidToRegister;
+		private List<String> tsuidToRegister = new ArrayList<String>();
 
 		/**
 		 * Test with regard to this.state if if the loop should continue running
@@ -275,6 +285,7 @@ public class ImportSessionIngester implements Runnable {
 			}
 			logger.info("Finished running submitedTasks.size={}", submitedTasks.size()); 
 		}
+		
 		/**
 		 * Shutdown the thread by ending the loop with a last run.
 		 */
@@ -292,6 +303,7 @@ public class ImportSessionIngester implements Runnable {
 				tsuidToRegister = new ArrayList<String>();
 			}
 			
+			// add the tsuid to the batch
 			tsuidToRegister.add(importItem.getTsuid());
 		}
 		
@@ -301,15 +313,16 @@ public class ImportSessionIngester implements Runnable {
 		private void registerTsuidsInDataset() {
 			
 			try {
+				// update the list of tsuid for the dataset
 				DataSetFacade datasetService = process.getDatasetService();
 				datasetService.updateInAppendMode(session.getDataset(), null, tsuidToRegister);
 			} catch (IkatsDaoException | NullPointerException e) {
 				String message = "Can't register a list of tsuids in dataset '" + session.getDataset() + "'";
 				session.addError(message);
-				session.addError(e.getMessage());
+				session.addError("Exception " + e.getClass().getName() + " | Message: " + e.getMessage());
 				if (! logger.isDebugEnabled()) {
 					logger.error(message);
-					logger.error(e.getMessage());
+					logger.error("Exception {} | Message: {}", e.getClass().getName(), e.getMessage());
 				} else {
 					logger.debug(message, e);
 				}
@@ -317,6 +330,7 @@ public class ImportSessionIngester implements Runnable {
 				session.setStatus(ImportStatus.STOPPED);
 			}
 			finally {
+				// clear the list for next batch of tsuids.
 				tsuidToRegister.clear();
 			}
 		}

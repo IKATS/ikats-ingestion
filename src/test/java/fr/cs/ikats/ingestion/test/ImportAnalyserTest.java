@@ -19,7 +19,6 @@ import fr.cs.ikats.ingestion.api.ImportSessionDto;
 import fr.cs.ikats.ingestion.model.ImportSession;
 import fr.cs.ikats.ingestion.model.ImportStatus;
 import fr.cs.ikats.ingestion.process.ImportAnalyser;
-import fr.cs.ikats.ingestion.process.IngestionProcess;
 
 public class ImportAnalyserTest {
 
@@ -53,8 +52,7 @@ public class ImportAnalyserTest {
 		
 		// -- Creates the ingestion process that do not run, only to pass it as an argument
 		// to the analyser !
-		IngestionProcess ingestionProcess = new IngestionProcess(importSession, null, null);
-		ImportAnalyser importAnalyser = new ImportAnalyser(ingestionProcess, importSession);
+		ImportAnalyser importAnalyser = new ImportAnalyser(importSession);
 		
 		// Start the analyser thread and wait until it to finish
 		Thread analyser = new Thread(importAnalyser);

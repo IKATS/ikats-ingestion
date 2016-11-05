@@ -2,8 +2,6 @@ package fr.cs.ikats.ingestion.process;
 
 import java.util.concurrent.Callable;
 
-import javax.ejb.Stateless;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,7 +12,6 @@ import fr.cs.ikats.ingestion.model.ImportStatus;
  * Factory which create a task that do not import anything and mark the {@link ImportItem} as {@link ImportStatus#CANCELLED CANCELLED}
  * @author ftoral
  */
-@Stateless
 public class DefaultImportNothingTaskFactory implements ImportItemTaskFactory {
 
 	private Logger logger = LoggerFactory.getLogger(DefaultImportNothingTaskFactory.class);

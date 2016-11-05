@@ -7,12 +7,16 @@ import java.util.HashMap;
 import java.util.List;
 
 import javax.xml.bind.Unmarshaller;
+import javax.xml.bind.annotation.XmlAccessType;
+import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlTransient;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringExclude;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import fr.cs.ikats.datamanager.client.opentsdb.ImportResult;
 import fr.cs.ikats.ingestion.process.ImportAnalyser;
@@ -23,6 +27,7 @@ import fr.cs.ikats.ingestion.process.ImportAnalyser;
  * The ImportItem is prepared by the {@link ImportAnalyser} that provides it with target file, metric and tags list.<br>
  * It is attached to the {@link ImportSession} and gets an {@link ImportResult} when import task as finished and  
  */
+@XmlAccessorType(XmlAccessType.FIELD)
 public class ImportItem {
 
 	private File file;
@@ -35,6 +40,7 @@ public class ImportItem {
 	private ImportStatus status;
 	@ToStringExclude
 	@XmlTransient
+	@JsonIgnore
 	private ImportSession importSession;
 	private List<String> errors;
 	private Instant importStartDate;
@@ -42,7 +48,15 @@ public class ImportItem {
     private long numberOfSuccess = 0;
     private long numberOfFailed = 0;
 	
+    @ToStringExclude
+    @XmlTransient
+    @JsonIgnore
 	private Logger logger = LoggerFactory.getLogger(ImportItem.class);
+	
+	@SuppressWarnings("unused")
+	private ImportItem() {
+		// default constructor
+	}
 
 	public ImportItem(ImportSession importSession, File importFile) {
 		this.importSession = importSession;

@@ -5,17 +5,25 @@ import java.util.Date;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import javax.xml.bind.annotation.XmlAccessType;
+import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlElementWrapper;
+import javax.xml.bind.annotation.XmlRootElement;
+import javax.xml.bind.annotation.XmlTransient;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringExclude;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import fr.cs.ikats.ingestion.api.ImportSessionDto;
 
+@XmlRootElement
+@XmlAccessorType(XmlAccessType.FIELD)
 public class ImportSession extends ImportSessionDto {
 	
 	@XmlElementWrapper(name = "toImport")
@@ -38,6 +46,9 @@ public class ImportSession extends ImportSessionDto {
 	@XmlElement(name = "message")	
 	public List<String> errors;
 	
+	@ToStringExclude
+	@XmlTransient
+	@JsonIgnore
 	private Logger logger = LoggerFactory.getLogger(ImportSession.class);
 	
 	private ImportSession() {
@@ -50,6 +61,7 @@ public class ImportSession extends ImportSessionDto {
 		this.description = simple.description;
 		this.rootPath = simple.rootPath;
 		this.pathPattern = simple.pathPattern;
+		this.funcIdPattern = simple.funcIdPattern;
 		this.importer = simple.importer;
 		this.serializer = simple.serializer;
 		this.status = ImportStatus.CREATED;

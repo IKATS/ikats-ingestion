@@ -27,7 +27,7 @@ public class ImportSessionDto {
 	 * </ul>
 	 * Examples :
 	 * <ol>
-	 * <li>For EDF : <code>"\/DAR\/(?&lt;equipement&gt;\w*)\/(?&lt;metric&gt;.*?)(?:_(?&lt;good&gt;bad|good))?\.csv"</code>
+	 * <li>For EDF : <code>"\/DAR\/(?&lt;equipement&gt;\w*)\/(?&lt;metric&gt;.*?)(?:_(?&lt;validity&gt;bad|good))?\.csv"</code>
 	 * <li>For Airbus : <code>"\/DAR\/(?&lt;AircraftIdentifier&gt;\w*)\/(?&lt;metric&gt;.*?)/raw_(?&lt;FlightIdentifier&gt;.*)\.csv"</code>
 	 * </li>
 	 * </ol>
@@ -40,7 +40,7 @@ public class ImportSessionDto {
 	 * <br>
 	 * Examples :
 	 * <ol>
-	 * <li>For EDF : <code></code></li>
+	 * <li>For EDF : <code>${equipement}_${metric}_${validity}</code></li>
 	 * <li>For Airbus : <code>${AircraftIdentifier}_${FlightIdentifier}_${metric}</code></li>
 	 * </ol>
 	 */
