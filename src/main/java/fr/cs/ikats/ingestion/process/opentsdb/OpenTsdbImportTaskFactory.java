@@ -14,6 +14,7 @@ import java.util.regex.Pattern;
 
 import javax.ws.rs.core.Response;
 
+import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.helpers.FormattingTuple;
@@ -149,10 +150,10 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 				String json = jsonizer.next(IMPORT_NB_POINTS_BY_BATCH);
 				try {
 					if (json != null && !json.isEmpty()) {
-						String url = (String) config.getProperty(ConfigProps.OPENTSDB_IMPORT_URL);
-						logger.debug("Sending request to {}" + url);
+						String url = (String) config.getString(ConfigProps.OPENTSDB_IMPORT_URL);
+						logger.debug("Sending request to " + url);
 						Response response = RequestSender.sendPUTJsonRequest(url, json);
-						ImportResult result = ResponseParser.parseImportResponse(response, response.getStatus());
+						ImportResult result = ResponseParser.parseImportResponse(response);
 						logger.debug("Import task finished with result: " + result);
 						
 						// Aggregate the result of this chunk into the item result
@@ -166,10 +167,9 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 						logger.error("JSON data is empty");
 						importItem.addError("[chunk #" + chunkIndex + "] JSON data is empty for chunk #" + chunkIndex);
 					}
-				} catch (Throwable e) {
-					// FIXME FTO : Remove that catch Throwable !!! (heritage of old TDM import)
-					logger.error("Exception occured while sending json to db", e);
-					importItem.addError("[chunk #" + chunkIndex + "] Exception occured while sending chunk #" + chunkIndex + " to db: " + e.getMessage());
+				} catch (IkatsWebClientException | ParseException e) {
+					logger.error("Exception occured with TSDB exchange", e);
+					importItem.addError("[chunk #" + chunkIndex + "] Exception occured with TSDB exchange: " + e.getMessage());
 				}
 			}
 		}
