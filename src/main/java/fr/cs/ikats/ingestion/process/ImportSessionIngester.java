@@ -9,12 +9,12 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
 import javax.ejb.Stateless;
-import javax.naming.NamingException;
 
 import org.apache.commons.lang3.text.StrSubstitutor;
 import org.slf4j.Logger;
@@ -28,7 +28,12 @@ import fr.cs.ikats.ingestion.model.ImportSession;
 import fr.cs.ikats.ingestion.model.ImportStatus;
 import fr.cs.ikats.metadata.MetaDataFacade;
 import fr.cs.ikats.ts.dataset.DataSetFacade;
+import fr.cs.ikats.util.concurrent.ExecutorPoolManager;
 
+/**
+ * That class represent a thread which is the main part of the ingestion process ({@link IngestionProcess}) that basically submit all items/timeseries ({@link ImportItem}) of the dataset for ingestion and analyse/check their individual status.
+ * @author ftoral
+ */
 @Stateless
 public class ImportSessionIngester implements Runnable {
 
@@ -59,10 +64,10 @@ public class ImportSessionIngester implements Runnable {
 	}
 	
 	/**
+	 * Create a "session ingester" to import/ingest an {@link ImportSession} with link to an {@link IngestionProcess}.
 	 * 
-	 * @param ingestionProcess
-	 * @param session
-	 * @throws NamingException
+	 * @param ingestionProcess Provides services : the {@link DataSetFacade} to register the TS into the dataset and the {@link ExecutorPoolManager} instance to submit ingestion tasks. 
+	 * @param session Properties of the ingestion
 	 * @throws ClassNotFoundException 
 	 * @throws IllegalAccessException 
 	 * @throws InstantiationException 
@@ -93,18 +98,58 @@ public class ImportSessionIngester implements Runnable {
 		REGISTER_TSUID_DATASET_BATCH_SIZE = (int) Configuration.getInstance().getInt(IngestionConfig.IKATS_INGESTER_TSUIDTODATASET_BATCH);
 	}
 
-	@Override
+	/**
+	 * The main objective of that thread is to run a loop that submit an import task for each {@link ImportItem}.<br>
+	 * 
+	 * <p>
+	 * There are 2 nested loops : <br>
+	 *   <ol>
+	 *     <li>First loop runs until :
+	 *       <ul>
+	 *         <li>The session is marked as {@link ImportStatus#RUNNING}
+	 *         <li>There are yet more items to ingest than submited tasks of ingestion:<br>
+	 *           <ul>
+	 *             <li>The list of items to import is unstacked at each item imported; 
+	 *             <li>The submited tasks list shall growth to the original number of items to import. 
+	 *           </ul>
+	 *       </ul>
+	 *     <li>The second loop (nested) is in charge of trying to submit an ingestion task.<br>
+	 *     The task is created with an implementation of the factory {@link ImportItemTaskFactory}<br>
+	 *     The task is submitted to the pool which is an instance of {@link ExecutorPoolManager}, a fixed size pool (using a {@link ArrayBlockingQueue}.<br> 
+	 *     (Note: The queue if configured to run a maximum tasks at time, see {@link ExecutorPoolManager#workingQueueSize}, currently at 10.<br>
+	 *     So the code do the following:
+	 *     <ul>
+	 *       <li>Gets the last version of the list of {@link ImportSession#getItemsToImport() itemsToImport}
+	 *       <li>LOOP UNTIL there is one item in that list
+	 *       <ul>
+	 *         <li>IF the {@link ImportItem} is in {@link ImportStatus#CREATED CREATED} state
+	 *         <ul>
+	 *           <li>submit a task (that will change the state of the {@link ImportItem}) and return a {@link Future} of {@link ImportItem}<br>
+	 *           <li>IF the return is not null, add it to the {@link ImportSessionIngester#submitedTasks submitedTasks} list.<br>
+	 *           That list will be unstacked by the inner {@link ImportItemAnalyserThread}
+	 *           when an item is imported the analyser thread calls {@link ImportItem#setItemImported()} which will remove it from the list of {@link ImportSession#getItemsToImport() itemsToImport}
+	 *           <li>IF the return is null, assume that the task was not submitted (due to queue full)<br>
+	 *           reset the {@link ImportItem} state to {@link ImportStatus#CREATED CREATED}
+	 *         </ul>
+	 *       </ul>
+	 *     </ul>
+	 *   </ol> 
+	 * </p>
+	 */
 	public void run() {
 
 		// Launch import results analyser thread
 		ImportItemAnalyserThread importItemAnalyserThread = new ImportItemAnalyserThread();
 		Thread thread = new Thread(importItemAnalyserThread);
 		thread.start();
+		
+		// get the original number of items to import
+		int numberOfItemsToImport = session.getItemsToImport().size();
 
 		// Launch the import loop
 		// The state is controlled on the 
 		while (session.getStatus() == ImportStatus.RUNNING
-				&& submitedTasks.size() < session.getItemsToImport().size()) {
+				&& submitedTasks.size() < numberOfItemsToImport) {
 
 			// at each loop get the last list of items to import
 			ListIterator<ImportItem> listIterator = session.getItemsToImport().listIterator();
@@ -170,9 +215,17 @@ public class ImportSessionIngester implements Runnable {
 	}
 
 	/**
-	 * This inner class is designed to be run at each loop of the
-	 * {@link ImportSessionIngester.run()}<br>
-	 * The goal is to unstack the stack of {@link Future<ImportResult>}
+	 * This inner class is designed to be run at start of the {@link ImportSessionIngester#run()} with goal to unstack the stack of {@link ImportItem} by running a loop on the {@link ImportSessionIngester#submitedTasks submitedTasks}<br>
+	 * The main concern is on the status {@link ImportStatus#IMPORTED IMPORTED} of the {@link ImportItem} to :
+	 * <ul>
+	 *   <li>Call {@link ImportItem#setItemImported() setItemImported()} that removes that item from the list of items to ingest in the session
+	 *   <li>Register the FunctionalIdentifier with {@link ImportItemAnalyserThread#registerFunctionalIdent(ImportItem) registerFunctionalIdent()}
+	 *   <li>Register the other metadata/tags with {@link ImportItemAnalyserThread#registerMetadata(ImportItem) registerMetadata()}
+	 *   <li>Register the TSUID in the Dataset, using a trick to defer that registration in a batch.<br>
+	 *   See {@link ImportItemAnalyserThread#perpareToRegisterInDataset(ImportItem) perpareToRegisterInDataset} and {@link ImportItemAnalyserThread#registerTsuidsInDataset() registerTsuidsInDataset}
+	 * </ul> 
+	 * 
+	 * <p><u>Note:</u> That pattern of deferred database update for the TSUID in Dataset could be generalized for all the database information, i.e. FunctionalIdentifier and Metadata.
 	 */
 	public class ImportItemAnalyserThread implements Runnable {
 
@@ -295,8 +348,9 @@ public class ImportSessionIngester implements Runnable {
 		}
 		
 		/**
-		 * Record the item for future linking in the dataset by {@link ImportItemAnalyserThread#registerTsuidsInDataset() registerTsuidsInDataset}
-		 * @param importItem
+		 * Record the item for future linking in the dataset by {@link ImportItemAnalyserThread#registerTsuidsInDataset() registerTsuidsInDataset}<br>
+		 * 
+		 * @param importItem the item for which the TSUID is to be registered in the dataset in the next batch record.
 		 */
 		private void perpareToRegisterInDataset(ImportItem importItem) {
 			if (tsuidToRegister == null) {
@@ -308,7 +362,7 @@ public class ImportSessionIngester implements Runnable {
 		}
 		
 		/**
-		 * Register the current list of IKATS TS into the dataset 
+		 * Register the current list of TSUIDs collected with {@link ImportItemAnalyserThread#perpareToRegisterInDataset(ImportItem)} into the dataset.<br>
 		 */
 		private void registerTsuidsInDataset() {
 			
@@ -337,7 +391,8 @@ public class ImportSessionIngester implements Runnable {
 		
 		/**
 		 * Register the Functional Identifier of the Ikats TS.
-		 * @param importItem
+		 * 
+		 * @param importItem the item for which the {@link ImportItem#getFuncId() FunctionalIdentifier} have to be registered.
 		 */
 		private void registerFunctionalIdent(ImportItem importItem) {
 			
@@ -368,7 +423,7 @@ public class ImportSessionIngester implements Runnable {
 		
 		/**
 		 * Register a metadata for each tag of the time serie.
-		 * @param importItem
+		 * @param importItem the item for which the {@link ImportItem#getTags()} have to be registered as metadata
 		 */
 		private void registerMetadata(ImportItem importItem) {
 

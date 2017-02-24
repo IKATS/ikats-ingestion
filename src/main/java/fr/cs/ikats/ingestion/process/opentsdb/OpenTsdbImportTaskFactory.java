@@ -35,7 +35,8 @@ import fr.cs.ikats.util.configuration.ConfigProperties;
 import fr.cs.ikats.util.configuration.IkatsConfiguration;
 
 /**
- * Factory which creates an OpenTSDB import task 
+ * Factory which creates an OpenTSDB import task.<br>
+ * Embedded the class task {@link ImportTask} that processes one TS.
  * 
  * @author ftoral
  */
@@ -43,9 +44,10 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 
 	private final static IkatsConfiguration<ConfigProps> config = new IkatsConfiguration<ConfigProps>(ConfigProps.class);
 	
-    private final static Pattern tsuidPattern = Pattern.compile(".*tsuids\":\\[\"(\\w*)\"\\].*");
+    /** Pattern for tsuid extract (from TemporalDataManagerWebApp) */
+	private final static Pattern tsuidPattern = Pattern.compile(".*tsuids\":\\[\"(\\w*)\"\\].*");
 
-    /** The OpenTSDB client manager instance */
+    /** The OpenTSDB client manager instance (from TemporalDataManagerWebApp) */
     private final static DataBaseClientManager urlBuilder = new DataBaseClientManager();
 
     private final int IMPORT_NB_POINTS_BY_BATCH;
@@ -62,7 +64,7 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 	}
 	
 	/**
-	 * 
+	 * The ingestion task that pushes a TS cutted in chunks into OpenTSDB
 	 * @author ftoral
 	 */
 	class ImportTask implements Callable<ImportItem> {
@@ -104,6 +106,7 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 
 			// } catch (IngestionException | IOException | DataManagerException | IkatsWebClientException e) {
 			} catch (Exception e) {
+				// We need to catch all exceptions because the thread status could not be managed otherwise.
 				FormattingTuple arrayFormat = MessageFormatter.format("Error while processing item for file {} ",importItem.getFile().toString());
 				logger.error(arrayFormat.getMessage(), e);
 				importItem.addError(e.getMessage());

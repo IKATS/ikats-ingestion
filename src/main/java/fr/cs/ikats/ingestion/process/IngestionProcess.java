@@ -16,6 +16,12 @@ import fr.cs.ikats.ts.dataset.DataSetFacade;
 import fr.cs.ikats.ts.dataset.model.DataSet;
 import fr.cs.ikats.util.concurrent.ExecutorPoolManager;
 
+
+/**
+ * That class represent a thread that manage the full ingestion of a single {@link ImportSession} 
+ * @author ftoral
+ *
+ */
 public class IngestionProcess implements Runnable {
 
 	private ManagedThreadFactory threadFactory;
@@ -25,6 +31,12 @@ public class IngestionProcess implements Runnable {
 	private Logger logger = LoggerFactory.getLogger(IngestionProcess.class);
 	private DataSetFacade dataSetFacade;
 
+	/**
+	 * Creates the thread for a {@link ImportSession session}, with a specific threadFactory that is provided by the J2EE container and an preconfigured {@link ExecutorPoolManager} to submit import tasks. 
+	 * @param session the description of the ingestion session
+	 * @param threadFactory the container thread facility 
+	 * @param executorPoolManager a specific thread queue for import tasks
+	 */
 	public IngestionProcess(ImportSession session, ManagedThreadFactory threadFactory, ExecutorPoolManager executorPoolManager) {
 		this.threadFactory = threadFactory;
 		this.session = session;
@@ -45,7 +57,25 @@ public class IngestionProcess implements Runnable {
 		return dataSetFacade;
 	}
 
-	@Override
+	/**
+	 * <p>That thread is designed to loop until an {@link ImportSession} is declared {@link ImportStatus#IMPORTED IMPORTED}.<br>
+	 * At each stage, of {@link ImportStatus}, it launches a new task, until IMPORTED.</p>
+	 * 
+	 * <p>Before that thread, when the {@link ImportSession} request is recieved by the application, the status is CREATED. Then the state machine runs.
+	 * </p>
+	 * 
+	 * When the sessions is:
+	 * <ul>
+	 *   <li>CREATED, then a {@link ImportAnalyser} runs to analyse the dataset and the TS to ingest/import.<br>
+	 *   When done, the state is upgraded to
+	 *   <li>ANALYSED, then the dataset is registered ({@link IngestionProcess#registerDataset(ImportSession) registerDataset(ImportSession)}) without TSUIDS.<br>
+	 *   When done, the state is upgraded to
+	 *   <li>DATASET_REGISTERED, then a new thread launches an {@link ImportSessionIngester}.
+	 *   <li>During ingestion, the session should be in state RUNNING, and the {@link ImportSessionIngester} thread is tested to be in a live state.<br>
+	 *   A completion, the state is upgraded to 
+	 *   <li>COMPLETED 
+	 * </ul>
+	 */
 	public void run() {
 		
 		// Implement life cycle :
@@ -122,7 +152,7 @@ public class IngestionProcess implements Runnable {
 			
 			if (runner != null && runner.isAlive()) {
 				try {
-					// Lock that thread until nested thread is finished
+					// Lock the current thread until the new nested process thread is finished
 					runner.join();
 				} catch (InterruptedException ie) {
 					// TODO manage error ?
