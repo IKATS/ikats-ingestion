@@ -1,14 +1,15 @@
 package fr.cs.ikats.ingestion.process;
 
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -21,12 +22,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import fr.cs.ikats.common.dao.exception.IkatsDaoException;
+import fr.cs.ikats.common.dao.exception.IkatsDaoMissingRessource;
 import fr.cs.ikats.ingestion.Configuration;
 import fr.cs.ikats.ingestion.IngestionConfig;
 import fr.cs.ikats.ingestion.model.ImportItem;
 import fr.cs.ikats.ingestion.model.ImportSession;
 import fr.cs.ikats.ingestion.model.ImportStatus;
 import fr.cs.ikats.metadata.MetaDataFacade;
+import fr.cs.ikats.metadata.model.FunctionalIdentifier;
+import fr.cs.ikats.metadata.model.MetaData;
 import fr.cs.ikats.ts.dataset.DataSetFacade;
 import fr.cs.ikats.util.concurrent.ExecutorPoolManager;
 
@@ -80,7 +84,7 @@ public class ImportSessionIngester implements Runnable {
 		// Get the factory to import session items. The default test implementation is used if none found.
 		String taskFactoryFQN = session.getImporter();
 		if (taskFactoryFQN == null) {
-			taskFactoryFQN = (String) Configuration.getInstance().getProperty(IngestionConfig.IKATS_DEFAULT_IMPORTITEM_TASK_FACTORY);
+			taskFactoryFQN = Configuration.getInstance().getString(IngestionConfig.IKATS_DEFAULT_IMPORTITEM_TASK_FACTORY);
 		}
 //		String taskFactoryName = taskFactoryFQN.substring(taskFactoryFQN.lastIndexOf('.') + 1);
 		
@@ -107,10 +111,9 @@ public class ImportSessionIngester implements Runnable {
 	 *     <li>First loop runs until :
 	 *       <ul>
 	 *         <li>The session is marked as {@link ImportStatus#RUNNING}
-	 *         <li>There are yet more items to ingest than submited tasks of ingestion:<br>
+	 *         <li>There are yet items to ingest/import.<br>
 	 *           <ul>
-	 *             <li>The list of items to import is unstacked at each item imported; 
-	 *             <li>The submited tasks list shall growth to the original number of items to import. 
+	 *             <li>The list of items to ingest/import is unstacked at each item imported; 
 	 *           </ul>
 	 *       </ul>
 	 *     <li>The second loop (nested) is in charge of trying to submit an ingestion task.<br>
@@ -142,14 +145,11 @@ public class ImportSessionIngester implements Runnable {
 		ImportItemAnalyserThread importItemAnalyserThread = new ImportItemAnalyserThread();
 		Thread thread = new Thread(importItemAnalyserThread);
 		thread.start();
-		
-		// get the original number of items to import
-		int numberOfItemsToImport = session.getItemsToImport().size();
 
 		// Launch the import loop
 		// The state is controlled on the 
-		while (session.getStatus() == ImportStatus.RUNNING
-				&& submitedTasks.size() < numberOfItemsToImport) {
+		// FIXME condition de fin de boucle à optimiser pour rendreC
+		while (session.getStatus() == ImportStatus.RUNNING && session.getItemsToImport().size() > 0) {
 
 			// at each loop get the last list of items to import
 			ListIterator<ImportItem> listIterator = session.getItemsToImport().listIterator();
@@ -194,6 +194,15 @@ public class ImportSessionIngester implements Runnable {
 			thread.join();
 		} catch (InterruptedException ie) {
 			logger.error("Interrupted while waiting importItemAnalyserThread to finish", ie);
+		}
+		finally {
+			// set ingest session final state
+			if (importItemAnalyserThread.state == ImportItemAnalyserState.COMPLETED) {
+				session.setStatus(ImportStatus.COMPLETED);
+			} else {
+				session.addError("The submitted tasks are not fully analysed, the analyser thread finished with state: " + importItemAnalyserThread.state.name());
+				session.setStatus(ImportStatus.STOPPED);
+			}
 		}
 
 	}
@@ -402,37 +411,16 @@ public class ImportSessionIngester implements Runnable {
 			valuesMap.put("metric", importItem.getMetric());
 			StrSubstitutor sub = new StrSubstitutor(valuesMap);
 			String funcId = sub.replace(funcIdPattern);
-			 
-			try {
-				importItem.setFuncId(funcId);
-				metaDataFacade.persistFunctionalIdentifier(importItem.getTsuid(), funcId);
-			} catch (IkatsDaoException e) {
-				String message = "Can't persist functional identifier '" +  importItem.getFuncId() + "' for tsuid " + importItem.getTsuid() + " ; item=" + importItem;
-				importItem.addError(message);
-				importItem.addError(e.getMessage());
-				if (! logger.isDebugEnabled()) {
-					logger.error(message);
-					logger.error(e.getMessage());
-				} else {
-					logger.debug(message, e);
-				}
-				
-				importItem.setStatus(ImportStatus.STOPPED);
-			}
-		}
-		
-		/**
-		 * Register a metadata for each tag of the time serie.
-		 * @param importItem the item for which the {@link ImportItem#getTags()} have to be registered as metadata
-		 */
-		private void registerMetadata(ImportItem importItem) {
-
-			Set<Entry<String, String>> tagsKV = importItem.getTags().entrySet();
-			for (Entry<String, String> tag : tagsKV) {
+			importItem.setFuncId(funcId);
+			
+			FunctionalIdentifier registeredFID = metaDataFacade.getFunctionalIdentifierByTsuid(importItem.getTsuid());
+			if (registeredFID == null) {
+				// We do not have an existing FID in the database. Create it.
 				try {
-					metaDataFacade.persistMetaData(importItem.getTsuid(), tag.getKey(), tag.getValue());
+					metaDataFacade.persistFunctionalIdentifier(importItem.getTsuid(), funcId);
 				} catch (IkatsDaoException e) {
-					String message = "Can't persist metadata (k/v) '" + tag.getKey() + "/" + tag.getValue() + "' for tsuid " + importItem.getTsuid() + " ; item=" + importItem;
+					// An error occured during persist of the functional identifier
+					String message = "Can't persist functional identifier '" +  importItem.getFuncId() + "' for tsuid " + importItem.getTsuid() + " ; item=" + importItem;
 					importItem.addError(message);
 					importItem.addError(e.getMessage());
 					if (! logger.isDebugEnabled()) {
@@ -441,8 +429,66 @@ public class ImportSessionIngester implements Runnable {
 					} else {
 						logger.debug(message, e);
 					}
-
 					
+					importItem.setStatus(ImportStatus.STOPPED);
+				}
+			} 
+			else { // We already have a functional identifier for that TSUID... 
+				
+				if (! registeredFID.getFuncId().equals(funcId)) {
+					// and it is not the same...
+					logger.warn("The TSDUID {} is already registered with Functional Identifier '{}' but the current calculated is '{}'. Keeping the old one.",
+							importItem.getTsuid(), registeredFID.getFuncId(), funcId);
+					importItem.setFuncId(registeredFID.getFuncId());
+				}
+				// else : nothing to do the exisitng FID is the same.
+			}
+		}
+		
+		/**
+		 * Register a metadata for each tag of the item.
+		 * @param importItem the item for which the {@link ImportItem#getTags()} have to be registered as metadata
+		 */
+		private void registerMetadata(ImportItem importItem) {
+
+			// Set the dataset tags as metadata
+			HashSet<Entry<String, String>> metadataKV = new HashSet<Entry<String, String>>(importItem.getTags().entrySet());
+			
+			// set the metric as metadata
+			metadataKV.add(new AbstractMap.SimpleEntry<String, String>("metric", importItem.getMetric()));
+			
+			// set the start and end dates as metadata
+			metadataKV.add(new AbstractMap.SimpleEntry<String, String>("ikats_start_date", Long.toString(importItem.getStartDate().toEpochMilli())));
+			metadataKV.add(new AbstractMap.SimpleEntry<String, String>("ikats_end_date", Long.toString(importItem.getEndDate().toEpochMilli())));
+			
+			for (Entry<String, String> md : metadataKV) {
+				try {
+					try {
+						MetaData metadata = metaDataFacade.getMetaData(importItem.getTsuid(), md.getKey());
+						if (! metadata.getValue().equals(md.getValue())) {
+							// the metadata shall be updated
+							metaDataFacade.updateMetaData(importItem.getTsuid(), md.getKey(), md.getValue());
+						}
+					}
+					catch (IkatsDaoMissingRessource e) {
+						// metadata not found, we could create it
+						metaDataFacade.persistMetaData(importItem.getTsuid(), md.getKey(), md.getValue());
+					}
+				}
+				catch (IkatsDaoException e) {
+					// An error occured during persist or update
+					String message = "Can't persist metadata (k/v) '" + md.getKey() + "/" + md.getValue()
+							+ "' for tsuid " + importItem.getTsuid() + " ; item=" + importItem;
+					importItem.addError(message);
+					importItem.addError(e.getMessage());
+					if (!logger.isDebugEnabled()) {
+						logger.error(message);
+						logger.error(e.getMessage());
+					} else {
+						logger.debug(message, e);
+					}
+					
+					// mark the item not fully "ingested"
 					importItem.setStatus(ImportStatus.STOPPED);
 				}
 			}
