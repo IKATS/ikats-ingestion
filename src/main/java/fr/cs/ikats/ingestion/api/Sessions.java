@@ -53,6 +53,7 @@ public class Sessions {
         return Response.ok(sessionsWrapped).build();
     }
     
+    // Review#147170 javadoc manquante
     @GET
     @Path("{id}")
     @Produces(MediaType.APPLICATION_JSON)
@@ -67,6 +68,7 @@ public class Sessions {
     	}
     }
     
+    // Review#147170 javadoc manquante
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
     public Response createSession(ImportSessionDto session, @Context UriInfo uriInfo) {
@@ -86,13 +88,17 @@ public class Sessions {
     	return Response.created(uri.build()).build();
     }
     
+    // Review#147170 javadoc manquante pour expliquer ce service
+    // Review#147170 ... du coup est ce utile d'avoir ce service non implémenté ... code mort ?
     @PUT
     @Path("{action}")
     public Response updateSessions(@PathParam(value = "action") String action) {
-    	// TODO implement !
+        // TODO implement !
 		return Response.status(Status.NOT_IMPLEMENTED).build();
     }
     
+    // Review#147170 javadoc manquante pour expliquer ce service
+    // Review#147170 ... du coup est ce utile d'avoir ce service non implémenté ... code mort ?
     @PUT
     @Path("{id}/{action}")
     public Response updateSession(@PathParam(value = "id") int id, @PathParam(value = "action") String action) {
@@ -100,12 +106,16 @@ public class Sessions {
 		return Response.status(Status.NOT_IMPLEMENTED).build();
     }
     
+    // Review#147170 javadoc manquante
+    // Review#147170 ... du coup est ce utile d'avoir ce service non implémenté ... code mort ?
     @DELETE
     public Response removeAll() {
     	// TODO implement !
 		return Response.status(Status.NOT_IMPLEMENTED).build();
     }
     
+    // Review#147170 javadoc manquante
+    // Review#147170 ... du coup est ce utile d'avoir ce service non implémenté ... code mort ?
     @DELETE
     @Path("{id}")
     public Response removeSession(@PathParam(value = "id") int id) {

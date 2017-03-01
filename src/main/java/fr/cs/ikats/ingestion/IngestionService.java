@@ -24,6 +24,11 @@ import fr.cs.ikats.ingestion.model.ModelManager;
 import fr.cs.ikats.ingestion.process.IngestionProcess;
 import fr.cs.ikats.util.concurrent.ExecutorPoolManager;
 
+// Review#147170 javadoc manquante sur classe et ses methodes publiques
+
+// Review#147170 ajouter pour @DependsOn: (par exemple:
+// Review#147170 the @DependsOn assures that ModelManager singleton has been initialized before the @PostConstruct method
+// Review#147170 applicationStartup() is called, during this singleton initialization )
 @Startup
 @Singleton
 @DependsOn({"ModelManager"})
@@ -39,11 +44,14 @@ public class IngestionService {
 	@EJB 
 	private ExecutorPoolManager executorPoolManager;
 	
+	// Review#147170 quasi redondant avec la factory de ExecutorPoolManager ? pourquoi 
+	// Review#147170 y a t il une difference dans name=... ? 
 	@Resource(name="java:comp/DefaultManagedThreadFactory") 
 	private ManagedThreadFactory threadFactory;
 	
 	private Logger logger = LoggerFactory.getLogger(IngestionService.class);
 
+	// Review#147170 renommer avec un role plus parlant ? theIngestionProcess ...  
 	private Thread newThread;
 
     // The @Startup annotation ensures that this method is
@@ -73,7 +81,7 @@ public class IngestionService {
 	public List<ImportSession> getSessions() {
 		return sessions;
 	}
-
+    // Review#147170 javadoc
 	@Lock(LockType.WRITE)
 	public int addSession(ImportSessionDto session) {
 		
@@ -87,6 +95,7 @@ public class IngestionService {
 		return newSession.getId();
 	}
 	
+	// Review#147170 javadoc
 	@Lock(LockType.WRITE)
 	public void removeSession(int id) {
 		boolean removed = this.sessions.removeIf(p -> p.getId() == id);
@@ -97,6 +106,7 @@ public class IngestionService {
 		}
 	}
 	
+	// Review#147170 javadoc
 	public ImportSessionDto getSession(int id) {
 		
 		ImportSessionDto session = null;
@@ -116,9 +126,9 @@ public class IngestionService {
 		if (newThread != null && newThread.isAlive()) {
 			throw new IngestionRejectedException("A session is already in process (could only import one session at time)");
 		}
-		
+		// Review#147170 correction dans le texte
 		// TODO in order to ensure fair usage of ExecutorPoolManager, future implementation should take care 
-		// of limiting the EPM instance in the scope one ImportItemTaskFactory.
+		// of limiting the EPM instance in the scope of one ImportItemTaskFactory.
 		// for that:
 		//   - EPM should not be a Singleton and should be instanciated at the ImportItemTaskFactory init with dedicated config
 		//   - OpenTsdbImportTaskFactory should be Singleton
