@@ -87,12 +87,15 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 
 				// Set import running for that item.
 				importItem.setStatus(ImportStatus.RUNNING);
+				importItem.setImportStartDate(Instant.now());
 				
 				// 1- Send the TS
 				sendItemInChunks(jsonizer);
 				
 				// 2- Get the resulting TSUID
 		        String tsuid = getTSUID(importItem.getMetric(), jsonizer.getDates()[0], importItem.getTags());
+				importItem.setImportEndDate(Instant.now());
+
 		        importItem.setTsuid(tsuid);
 		        if (tsuid == null || tsuid.isEmpty()) {
 		        	throw new IngestionException("Could not get OpenTSDB tsuid for item: " + importItem);
