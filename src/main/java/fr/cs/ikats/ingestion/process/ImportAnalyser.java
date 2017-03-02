@@ -24,6 +24,7 @@ import fr.cs.ikats.ingestion.model.ImportSession;
 import fr.cs.ikats.ingestion.model.ImportStatus;
 import fr.cs.ikats.util.RegExUtils;
 
+// Review#147170 javadoc classe, constructeur, methodes publiques
 public class ImportAnalyser implements Runnable {
 	
 	private static final String METRIC_REGEX_GROUPNAME = "metric";
@@ -32,10 +33,13 @@ public class ImportAnalyser implements Runnable {
 
 	private ImportSession session;
 
+	// Review#147170 commentaire
 	private Pattern pathPatternCompiled;
 
+	// Review#147170 commentaire
 	private Map<String, Integer> namedGroups;
 	
+	// Review#147170 
 	public ImportAnalyser(ImportSession session) {
 		this.session = session;
 	}
@@ -128,7 +132,8 @@ public class ImportAnalyser implements Runnable {
 	/**
 	 * Based on the {@link ImportSessionDto.pathPattern} definition, extract and store metric and tags and metric
 	 * @param item the item on which extract metric and tags.
-	 * @param matcher the  
+	 * @param matcher the 
+	 * Review#147170 a finir 
 	 */
 	private void extractMetricAndTags(ImportItem item, Matcher matcher) {
 

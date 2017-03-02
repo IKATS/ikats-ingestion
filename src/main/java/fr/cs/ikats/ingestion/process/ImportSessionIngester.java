@@ -86,6 +86,8 @@ public class ImportSessionIngester implements Runnable {
 		if (taskFactoryFQN == null) {
 			taskFactoryFQN = Configuration.getInstance().getString(IngestionConfig.IKATS_DEFAULT_IMPORTITEM_TASK_FACTORY);
 		}
+		
+		// Review#147170 nettoyer code commenté ou retablir ...
 //		String taskFactoryName = taskFactoryFQN.substring(taskFactoryFQN.lastIndexOf('.') + 1);
 		
 //		Context ctx = new InitialContext();
@@ -142,12 +144,23 @@ public class ImportSessionIngester implements Runnable {
 	public void run() {
 
 		// Launch import results analyser thread
+	    
+	    // Review#147170 c'est un runnable pas un thread ... renommer en importItemAnalyserRunnable ?
 		ImportItemAnalyserThread importItemAnalyserThread = new ImportItemAnalyserThread();
+		
+		// Review#147170 renommer en qqch de plus explicite que 'thread' : importItemAnalyserThread ? ...
 		Thread thread = new Thread(importItemAnalyserThread);
 		thread.start();
 
 		// Launch the import loop
 		// The state is controlled on the 
+
+        // Review#147170 cf remarque entete de ImportItemAnalyserThread ... la machine a etats pourrait evoluer ...
+        // Review#147170 ... vers if ( CREATED) ... else if ( IMPORTED ) ... 
+        // Review#147170 expliciter le but de 'session.getStatus() == ImportStatus.RUNNING' en lien avec IngestionProcess
+		
+		// Review#147170 merge fait MBD: condition revue par FTL: while revu: parait plus clair
+		// Review#147170 commentaire "FIXME" a terminer:
 		// FIXME condition de fin de boucle à optimiser pour rendreC
 		while (session.getStatus() == ImportStatus.RUNNING && session.getItemsToImport().size() > 0) {
 
@@ -159,6 +172,9 @@ public class ImportSessionIngester implements Runnable {
 
 				// for each one create and submit and import task
 				if (importItem.getStatus() == ImportStatus.CREATED) { 
+				    
+				    // Review#147170 expliquer plus le lien entre interface importItemTaskFactory 
+				    // Review#147170 et l'implem de createTask initialisée
 					Callable<ImportItem> task = importItemTaskFactory.createTask(importItem);
 					Future<ImportItem> submitedTask = process.getExecutorPool().submit(task);
 					
@@ -183,12 +199,15 @@ public class ImportSessionIngester implements Runnable {
 				Thread.sleep(1000);
 			} catch (InterruptedException ie) {
 				// TODO manage error ?
+			    // Review#147170 prise en compte TODO 
 				logger.warn("Interrupted while waiting", ie);
 			}
 		}
-
+		
 		// launch stop command to the result analysis thread and wait for it to
 		// finish
+		// Review#147170 conflit entre l ecriture de state par le thread et ce stop() sur le runnable ?
+		// Review#147170 on pourrait prendre une precaution de synchro ?
 		importItemAnalyserThread.stop();
 		try {
 			thread.join();
@@ -222,7 +241,10 @@ public class ImportSessionIngester implements Runnable {
 		/** End state */
 		COMPLETED
 	}
-
+    // Review#147170 peut etre trop complexe ? ... 
+	// Review#147170 pourquoi ne pas   - insérer un etat ImportStatus.RUNNING_REGISTER entre IMPORTED et COMPLETED:
+	// Review#147170                   - ... et completer une seule machinea etat: celle du ImportSessionIngester:run()
+	// Review#147170                   - ... et completer le ImportTaskFactory: createTask retourne ImportTask ou bien RegisterTask - un Callable par etat ...
 	/**
 	 * This inner class is designed to be run at start of the {@link ImportSessionIngester#run()} with goal to unstack the stack of {@link ImportItem} by running a loop on the {@link ImportSessionIngester#submitedTasks submitedTasks}<br>
 	 * The main concern is on the status {@link ImportStatus#IMPORTED IMPORTED} of the {@link ImportItem} to :

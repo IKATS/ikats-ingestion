@@ -16,8 +16,8 @@ import fr.cs.ikats.ts.dataset.DataSetFacade;
 import fr.cs.ikats.ts.dataset.model.DataSet;
 import fr.cs.ikats.util.concurrent.ExecutorPoolManager;
 
-
 /**
+ *
  * That class represent a thread that manage the full ingestion of a single {@link ImportSession} 
  * @author ftoral
  *
@@ -88,6 +88,8 @@ public class IngestionProcess implements Runnable {
 		// 5- Loop to 2 until each item is imported if previous analyse permits it.
 		
 		// manage only one ImportSession
+	    // Review#147170 expliquer l'interet d'un sous-thread runner unique de ce thread IngestionProcess ... obligé ?
+	    // Review#147170 on pourrait utiliser directement Runnable::run() sinon (donc peu de modifs)
 		Thread runner = null;
 		while(session.getStatus() != ImportStatus.COMPLETED
 				&& session.getStatus() != ImportStatus.CANCELLED
@@ -143,13 +145,17 @@ public class IngestionProcess implements Runnable {
 					// finished.
 					break;
 				default:
+				    // Review#147170 pourqoi pas gerer l'exception maintenant ?
 					// TODO manage an exception here when implementation will be full
 					//break;
 					// For instance, set import cancelled :
 					session.setStatus(ImportStatus.CANCELLED);
 					continue;
 			}
-			
+			// Review#147170 si on garde le type Thread pour runner:
+			// Review#147170   pourquoi eloigner ce bout de code des start() ? ...
+			// Review#147170   j'aurais fait une methode privee joinRunner(...), et appelé joinRunner(runner) avant les break ...
+			// Review#147170 si on abandonne le type Thread pour runner => Runnable: remplacer start() par run() ... et supprimer ce code de join
 			if (runner != null && runner.isAlive()) {
 				try {
 					// Lock the current thread until the new nested process thread is finished
@@ -176,7 +182,11 @@ public class IngestionProcess implements Runnable {
 			DataSet dataSet = dataSetFacade.getDataSet(session.getDataset());
 			logger.warn("Dataset {} already registered", dataSet.getName());
 		}
+	
 		// FIXME : to be changed in the DAO, when no dataset with that name is found, the DAO raises an Exception. It should instead return null.
+		// Review#147170 attention effet de bord FIXME: IkatsDaoMissingRessource est associée à un handler d'erreur pour les codes
+		// Review#147170 de retour Rest: si on retourne null il faudra corriger les services Rest impactés ...
+		// Review#147170 sinon: faire un service hasDataset(...) sur la facade ? 
 		catch (IkatsDaoMissingRessource e) {
 			try {
 				// register only if the dataset doesn't exists in database

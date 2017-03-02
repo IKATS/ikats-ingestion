@@ -22,13 +22,24 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 import fr.cs.ikats.ingestion.api.ImportSessionDto;
 
+// Review#147170 javadoc resumant le role de cette classe
+// Review#147170 javadoc methodes publiques (y compris getter/setter)
 @XmlRootElement
 @XmlAccessorType(XmlAccessType.FIELD)
 public class ImportSession extends ImportSessionDto {
-	
+	// Review#147170 remarque cote synchronisation et multithread: la doc de CopyOnWriteArrayList parle de pbs de perfs
+    // Review#147170 juste une suggestion de ma part:
+    // Review#147170 - la gestion de 3 listes qui vont muter pourrait se reduire à une seule ArrayList, écrite par ImportAnalyser (add)
+    // Review#147170 - et tu peux gerer les etats des importItem grace a l'attribut ImportItem::status -completer etat- ! 
+    // Review#147170 en rajoutant eventuellement un etat ERROR et quitte  a rendre synchronized son setter ... 
+    // Review#147170 - et definir des filtres getAllItems() getImportedItems() getItemsWithError()
+    // Review#147170 - apres tu pourrais annoter les filtres plutot que les attributs, si c'est pas un souci ?
 	@XmlElementWrapper(name = "toImport")
 	@JsonProperty(value = "toImport")
 	@XmlElement(name = "item")
+	// Review#147170 expliquer/justifier usage CopyOnWriteArrayList ... pas trop couteux ? et sinon synchronized sur 
+	// Review#147170 les modifieurs (setItemImported / setItemInError ) ?
+	// Review#147170 ... contourne un pb mthread avec ArrayList ?
 	private CopyOnWriteArrayList<ImportItem> itemsToImport = new CopyOnWriteArrayList<ImportItem>();
 	@XmlElementWrapper(name = "imported")
 	@JsonProperty(value = "imported")
@@ -98,9 +109,13 @@ public class ImportSession extends ImportSessionDto {
 	}
 	
 	public String toString() {
+	    // Review#147170 toString potentiellement enorme: c'est voulu ? je vois qu'il y a un tag exclude possible
 		return ToStringBuilder.reflectionToString(this);
 	}
 	
+	// Review#147170 pourquoi avoir separe les getter/setter des attributs de la superclass ? 
+	// Review#147170 expliquer si voulu
+	// Review#147170 meme Rq pour les autres attr
 	public int getId() {
 		return super.id;
 	}
@@ -152,11 +167,12 @@ public class ImportSession extends ImportSessionDto {
 	public ImportStatus getStatus() {
 		return status;
 	}
-
+	// Review#147170 pas de synchronized ici ? 
 	public void setStatus(ImportStatus status) {
 		this.status = status;
 	}
 	
+	// Review#147170 pas de synchronized ici ?
 	public void addError(String error) {
 		if (errors == null) {
 			errors = new ArrayList<String>();
