@@ -25,7 +25,7 @@ public class DefaultImportNothingTaskFactory implements ImportItemTaskFactory {
 		ImportTask task = new ImportTask(item);
 		return task;
 	}
-	
+	// Review#147170  qqs explications javadoc sur ImportTask 
 	/**
 	 * 
 	 * @author ftoral

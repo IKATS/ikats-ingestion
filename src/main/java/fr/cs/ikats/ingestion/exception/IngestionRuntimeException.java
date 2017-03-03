@@ -1,5 +1,6 @@
 package fr.cs.ikats.ingestion.exception;
 
+// Review#147170 javadoc
 public class IngestionRuntimeException extends RuntimeException {
 
 	private static final long serialVersionUID = 4977360988665709745L;

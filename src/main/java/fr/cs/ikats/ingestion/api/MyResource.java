@@ -4,7 +4,7 @@ import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
-
+// Review#147170 l'objectif est il de tester rapidement que l'API tourne ? ou code mort a supprimer 
 /**
  * Root resource (exposed at "myresource" path)
  */

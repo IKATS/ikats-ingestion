@@ -91,7 +91,9 @@ public class ModelManager {
 		marshall();
 	}
 	
-	// Review#147170  commentaire pour marshall : ecrire
+	// Review#147170 corriger nom: marshal en anglais ou mettre un nom plus parlant saveModelXml
+	// Review#147170 le verbe anglais est marshal (voir dessous) perso je trouve pas cela tres clair
+	// Review#147170 mais je comprendrais si tu passes
 	private void marshall() {
 		
 		try {
@@ -114,7 +116,8 @@ public class ModelManager {
 			e.printStackTrace();
 		}
 	}
-    // Review#147170  commentaire pour unmarshall : load a partir du XML des sessions
+	// Review#147170 corriger nom: unmarshal en anglais ou mettre un nom plus parlant loadModelXml
+    // Review#147170 commentaire pour la methode: load a partir du XML des sessions
 	// Review#147170 gestion erreurs: on masque des erreurs ... volontaire ? completer les logs ?
 	private List<ImportSession> unmarshall() {
 

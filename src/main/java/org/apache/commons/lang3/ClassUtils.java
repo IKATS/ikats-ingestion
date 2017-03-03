@@ -30,6 +30,8 @@ import java.util.Set;
 
 import org.apache.commons.lang3.mutable.MutableObject;
 
+// Review#147170 expliquer le pourquoi de ce patch dans le code plutot que dans le commit
+// Review#147170 et indiquer perimetre du patch (utiliser un mot clef pour retrouver les impacts dans les commentaires/javadoc ?
 /**
  * <p>Operates on classes without using reflection.</p>
  *

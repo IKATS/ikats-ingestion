@@ -20,6 +20,12 @@ import fr.cs.ikats.ingestion.model.ImportSession;
 import fr.cs.ikats.ingestion.model.ImportStatus;
 import fr.cs.ikats.ingestion.process.ImportAnalyser;
 
+// Review#147170 je sais pas ou l'ecrire mais il manquerait des TU
+// Review#147170 - sur IngestionProcess: pour registerDataset() ... => IngestionProcessTest (AC?)
+// Review#147170 - sur les web services Sessions (avec des mocks ...) => SessionsTest
+// Review#147170 - et a un niveau plus bas: TU sur OpenTsdbImportTaskFactory => OpenTsdbImportTaskFactoryTest
+
+// Review#147170 javadoc succinte sur obj tu
 public class ImportAnalyserTest {
 
 	/** Example of Regex for the "pathPattern" in the case of EDF Dataset */

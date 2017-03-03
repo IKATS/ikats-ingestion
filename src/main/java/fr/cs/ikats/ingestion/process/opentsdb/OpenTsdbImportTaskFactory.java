@@ -44,7 +44,8 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 
 	private final static IkatsConfiguration<ConfigProps> config = new IkatsConfiguration<ConfigProps>(ConfigProps.class);
 	
-    /** Pattern for tsuid extract (from TemporalDataManagerWebApp) */
+	// Review#147170 corrected
+    /** Pattern for the tsuid extracting in {@link ImportTask#getTSUID(String, Long, Map)} */
 	private final static Pattern tsuidPattern = Pattern.compile(".*tsuids\":\\[\"(\\w*)\"\\].*");
 
     /** The OpenTSDB client manager instance (from TemporalDataManagerWebApp) */
@@ -54,10 +55,18 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
     
 	private Logger logger = LoggerFactory.getLogger(OpenTsdbImportTaskFactory.class);
 
+	// Review#147170 added
+	/**
+	 * Default contructor based upon configured IMPORT_CHUNK_SIZE
+	 */
 	public OpenTsdbImportTaskFactory() {
 		IMPORT_NB_POINTS_BY_BATCH = (int) config.getInt(ConfigProps.IMPORT_CHUNK_SIZE);
 	}
-		
+	// Review#147170 added
+	/**
+	 * 
+	 * {@inheritDoc}
+	 */
 	public Callable<ImportItem> createTask(ImportItem item) {
 		ImportTask task = new ImportTask(item);
 		return task;
@@ -106,6 +115,10 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 		        // 3- Provide ImportItem with imported key values
 				importItem.setStartDate(Instant.ofEpochMilli(jsonizer.getDates()[0]));
 				importItem.setEndDate(Instant.ofEpochMilli(jsonizer.getDates()[1]));
+				
+				// Review#147170 il manque l'appel jsonizer.close() de pref en couvrant les cas nominaux et degradés
+	            //   pour refermer le filehandler du reader comme prevu dans l'interface et codé dans 
+	            //   AbstractDataJsonIzer::close()
 
 			// } catch (IngestionException | IOException | DataManagerException | IkatsWebClientException e) {
 			} catch (Exception e) {
@@ -115,6 +128,9 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 				importItem.addError(e.getMessage());
 				importItem.setStatus(ImportStatus.CANCELLED);
 			}
+			// Review#147170 il manque l'appel jsonizer.close() de pref en couvrant les cas nominaux et degradés
+			//   pour refermer le filehandler du reader comme prevu dans l'interface et codé dans 
+			//   AbstractDataJsonIzer::close()
 
 			// the import item was provided with all its new properties
 			return this.importItem;
@@ -140,7 +156,9 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 			}
 			
 		}
-
+		// Review#147170 meme si methode privee ce serait super de completer la javadoc
+		// Review#147170 et de mettre un exemple de requete/reponse HTTP du service Opentsdb appelé
+		// Review#147170 (meme si configurable: c'est bien d'avoir sous la main la requete)
 		/**
 		 * @param jsonizer
 		 * @throws IOException
@@ -193,6 +211,8 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 	     * @throws IkatsWebClientException
 	     *             if request cannot be generated or sent
 	     */
+		// Review#147170 nom arg date ... pas lisible: endDate 
+		// Review#147170 nom arg hashmap ... pas lisible : tags ou tagsMap ?
 	    public String getTSUID(String metric, Long date, Map<String, String> hashMap) throws IkatsWebClientException {
 	    	
 	        // Build the tag map

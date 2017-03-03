@@ -14,6 +14,7 @@ import fr.cs.ikats.datamanager.client.importer.IImportSerializer;
 import fr.cs.ikats.ingestion.exception.IngestionException;
 import fr.cs.ikats.ingestion.model.ImportItem;
 
+// Review#147170 javadoc ... expliquer
 /**
  * 
  * @author ftoral
@@ -33,11 +34,11 @@ public abstract class AbstractImportTaskFactory implements ImportItemTaskFactory
 	
 	public abstract Callable<ImportItem> createTask(ImportItem item);
 	
-	
 	@SuppressWarnings("unchecked")
 	public IImportSerializer getSerializer(ImportItem item) throws IngestionException {
 		
 		String serializerFQN = item.getImportSession().getSerializer();
+		// Review#147170 expliquer interet de jsonizerMap pour booster les perfs
 		Class<IImportSerializer> importSerializerClass = jsonizerMap.get(serializerFQN);
 		
 		IImportSerializer serializerInstance;

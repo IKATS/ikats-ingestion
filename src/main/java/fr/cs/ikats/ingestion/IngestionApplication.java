@@ -21,6 +21,7 @@ public class IngestionApplication extends Application {
         final Set<Class<?>> classes = new HashSet<Class<?>>();
         // register root resources/providers
         classes.add(Sessions.class);
+        // Review#147170 supprimer MyResource ? 
         classes.add(MyResource.class);
         return classes;
     }

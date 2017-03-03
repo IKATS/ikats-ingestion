@@ -27,7 +27,7 @@ import fr.cs.ikats.ingestion.model.ImportStatus;
 import fr.cs.ikats.ingestion.process.ImportSessionIngester;
 import fr.cs.ikats.ingestion.process.IngestionProcess;
 import fr.cs.ikats.util.concurrent.ExecutorPoolManager;
-
+// Review#147170 j'aimerais bien que tu me presentes les tests
 @RunWith(PowerMockRunner.class)
 // Ignore standards framework classes and the IKATS class model in order to avoid PowerMock create objects and confusing Hibernate 
 @PowerMockIgnore({"com.sun.*", "java.lang.*", "javax.*", "org.*", "fr.cs.ikats.ts.*", "fr.cs.ikats.metadata.*"})
@@ -56,6 +56,7 @@ public class ImportSessionIngesterTest {
         
         // Get the executor pool from container to manage the import threads
         Context ctx = ejbContainer.getContext();
+        // Review#147170 plus simplement "java:global/ikats-ingestion/ExecutorPoolManager"
         String executorPoolManagerServiceName = "java:global/ikats-ingestion/" + ExecutorPoolManager.class.getSimpleName();
         executorPoolManager = (ExecutorPoolManager) ctx.lookup(executorPoolManagerServiceName);
     }
