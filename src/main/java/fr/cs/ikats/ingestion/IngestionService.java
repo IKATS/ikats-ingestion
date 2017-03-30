@@ -38,7 +38,7 @@ public class IngestionService {
 	private List<ImportSession> sessions;
 	
 	/** Pointer to allow persistence of the model */
-	@EJB 
+	@EJB
 	private ModelManager modelManager;
 	
 	@EJB 

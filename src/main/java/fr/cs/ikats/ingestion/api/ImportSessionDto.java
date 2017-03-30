@@ -17,7 +17,13 @@ public class ImportSessionDto {
 	
 	public String description;
 	
-	/** Absolute root path of the dataset on the import server where files are located */
+	/** 
+	 * Root path of the dataset on the import server where files are located.<br>
+	 * <ul>
+	 *   <li>Could be absolute, in that case, represent the path on the server.</li>
+	 *   <li>If relative, the configuration property defined in {@link IngestionConfig#IKATS_INGESTER_ROOT_PATH} will be used as root path.</li>
+	 * </ul>  
+	 */
 	public String rootPath;
 	
 	// Review#147170 </li> rajoutés
