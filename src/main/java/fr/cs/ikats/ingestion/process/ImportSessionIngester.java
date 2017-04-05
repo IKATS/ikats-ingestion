@@ -1,15 +1,12 @@
 package fr.cs.ikats.ingestion.process;
 
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -22,7 +19,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import fr.cs.ikats.common.dao.exception.IkatsDaoException;
-import fr.cs.ikats.common.dao.exception.IkatsDaoMissingRessource;
 import fr.cs.ikats.ingestion.Configuration;
 import fr.cs.ikats.ingestion.IngestionConfig;
 import fr.cs.ikats.ingestion.model.ImportItem;
@@ -31,6 +27,7 @@ import fr.cs.ikats.ingestion.model.ImportStatus;
 import fr.cs.ikats.metadata.MetaDataFacade;
 import fr.cs.ikats.metadata.model.FunctionalIdentifier;
 import fr.cs.ikats.metadata.model.MetaData;
+import fr.cs.ikats.metadata.model.MetaData.MetaType;
 import fr.cs.ikats.ts.dataset.DataSetFacade;
 import fr.cs.ikats.util.concurrent.ExecutorPoolManager;
 
@@ -472,47 +469,68 @@ public class ImportSessionIngester implements Runnable {
 		 * @param importItem the item for which the {@link ImportItem#getTags()} have to be registered as metadata
 		 */
 		private void registerMetadata(ImportItem importItem) {
-
-			// Set the dataset tags as metadata
-			HashSet<Entry<String, String>> metadataKV = new HashSet<Entry<String, String>>(importItem.getTags().entrySet());
+			
+			ArrayList<MetaData> metadataList = new ArrayList<MetaData>();
 			
 			// set the metric as metadata
-			metadataKV.add(new AbstractMap.SimpleEntry<String, String>("metric", importItem.getMetric()));
+			MetaData mdMetric = new MetaData();
+			mdMetric.setName("metric");
+			mdMetric.setDType(MetaType.string);
+			mdMetric.setValue(importItem.getMetric());
+			mdMetric.setTsuid(importItem.getTsuid());
+			metadataList.add(mdMetric);
 			
 			// set the start and end dates as metadata
-			metadataKV.add(new AbstractMap.SimpleEntry<String, String>("ikats_start_date", Long.toString(importItem.getStartDate().toEpochMilli())));
-			metadataKV.add(new AbstractMap.SimpleEntry<String, String>("ikats_end_date", Long.toString(importItem.getEndDate().toEpochMilli())));
-			
-			for (Entry<String, String> md : metadataKV) {
-				try {
-					try {
-						MetaData metadata = metaDataFacade.getMetaData(importItem.getTsuid(), md.getKey());
-						if (! metadata.getValue().equals(md.getValue())) {
-							// the metadata shall be updated
-							metaDataFacade.updateMetaData(importItem.getTsuid(), md.getKey(), md.getValue());
-						}
-					}
-					catch (IkatsDaoMissingRessource e) {
-						// metadata not found, we could create it
-						metaDataFacade.persistMetaData(importItem.getTsuid(), md.getKey(), md.getValue());
-					}
-				}
-				catch (IkatsDaoException e) {
-					// An error occured during persist or update
-					String message = "Can't persist metadata (k/v) '" + md.getKey() + "/" + md.getValue()
-							+ "' for tsuid " + importItem.getTsuid() + " ; item=" + importItem;
-					importItem.addError(message);
-					importItem.addError(e.getMessage());
-					if (!logger.isDebugEnabled()) {
-						logger.error(message);
-						logger.error(e.getMessage());
-					} else {
-						logger.debug(message, e);
-					}
+			MetaData mdStartDate = new MetaData();
+			mdStartDate.setName("ikats_start_date");
+			mdStartDate.setDType(MetaType.date);
+			mdStartDate.setValue(Long.toString(importItem.getStartDate().toEpochMilli()));
+			mdStartDate.setTsuid(importItem.getTsuid());
+			metadataList.add(mdStartDate);
+			MetaData mdEndDate = new MetaData();
+			mdEndDate.setName("ikats_end_date");
+			mdEndDate.setDType(MetaType.date);
+			mdEndDate.setValue(Long.toString(importItem.getEndDate().toEpochMilli()));
+			mdEndDate.setTsuid(importItem.getTsuid());
+			metadataList.add(mdEndDate);
+
+			// set the number of points
+			MetaData mdNbPoints = new MetaData();
+			mdNbPoints.setName("qual_nb_points");
+			mdNbPoints.setDType(MetaType.number);
+			mdNbPoints.setValue(Long.toString(importItem.getNumberOfSuccess()));
+			mdNbPoints.setTsuid(importItem.getTsuid());
+			metadataList.add(mdNbPoints);
 					
-					// mark the item not fully "ingested"
-					importItem.setStatus(ImportStatus.STOPPED);
+			
+			// Set the dataset tags as metadata
+			importItem.getTags().entrySet().forEach( tag -> {
+				MetaData mdTag = new MetaData();
+				mdTag.setName(tag.getKey());
+				mdTag.setDType(MetaType.string);
+				mdTag.setValue(tag.getValue());
+				mdTag.setTsuid(importItem.getTsuid());
+				metadataList.add(mdTag);
+			} );
+			
+			try {
+				// Save all the metadata with update option.
+				metaDataFacade.persist(metadataList, true);
+			}
+			catch (IkatsDaoException e) {
+				// An error occured during persist or update
+				String message = "Can't persist metadata for tsuid " + importItem.getTsuid() + " ; item=" + importItem;
+				importItem.addError(message);
+				importItem.addError(e.getMessage());
+				if (!logger.isDebugEnabled()) {
+					logger.error(message);
+					logger.error(e.getMessage());
+				} else {
+					logger.debug(message, e);
 				}
+				
+				// mark the item not fully "ingested"
+				importItem.setStatus(ImportStatus.STOPPED);
 			}
 		}
 
