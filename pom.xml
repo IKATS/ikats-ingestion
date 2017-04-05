@@ -56,12 +56,41 @@
 				<skip.unit.tests>true</skip.unit.tests>
 			</properties>
 		</profile>
+		<profile>
+			<id>int-target</id>
+			<properties>
+				<deploy-server.host>172.28.15.84</deploy-server.host>
+				<deploy-server.port>8181</deploy-server.port>
+			</properties>
+		</profile>
+		<profile>
+			<id>int-b-target</id>
+			<properties>
+				<deploy-server.host>172.28.15.14</deploy-server.host>
+				<deploy-server.port>8181</deploy-server.port>
+			</properties>
+		</profile>
+		<profile>
+			<id>preprod-target</id>
+			<properties>
+				<deploy-server.host>172.28.15.89</deploy-server.host>
+				<deploy-server.port>8181</deploy-server.port>
+			</properties>
+		</profile>
+		<profile>
+			<id>local-container-target</id>
+			<properties>
+				<deploy-server.host>127.0.0.1</deploy-server.host>
+				<deploy-server.port>8081</deploy-server.port>
+			</properties>
+		</profile>
 	</profiles>
 
 	<build>
 		<finalName>${project.artifactId}</finalName>
 
 		<plugins>
+		    <!-- Configure the build paths -->
 			<plugin>
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>build-helper-maven-plugin</artifactId>
@@ -99,6 +128,27 @@
 							</resources>
 						</configuration>
 					</execution>
+					<!-- Build the war by copying the $target environment passed when running mvn -Dtarget=xxx
+					/!\ TODO a modifier dans une future itération pour permettre de construire un WAR unique pour tous les environnements
+					Et selectionner l'environement au runtime.
+					A lire : 
+					- https://dzone.com/articles/maven-profile-best-practices et ses renois
+					- http://stackoverflow.com/questions/13956651/externalizing-tomcat-webapp-config-from-war-file/26146742#26146742
+					 -->
+					<execution>
+						<id>add-target-environment-resources</id>
+						<phase>generate-resources</phase>
+						<goals>
+							<goal>add-resource</goal>
+						</goals>
+						<configuration>
+							<resources>
+								<resource>
+									<directory>environment/${target}</directory>
+								</resource>
+							</resources>
+						</configuration>
+					</execution>
 				</executions>
 			</plugin>
 
@@ -120,29 +170,21 @@
 				<version>3.0.0</version>
 				<configuration>
 					<failOnMissingWebXml>false</failOnMissingWebXml>
-<!-- 					<webResources> -->
-<!-- 						<resource> -->
-<!-- 							<directory>src/main/resources</directory> -->
-<!-- 							<targetPath>WEB-INF/classes</targetPath> -->
-<!-- 							<includes> -->
-<!-- 								<include>**/*</include> -->
-<!-- 							</includes> -->
-<!-- 						</resource> -->
-<!-- 					</webResources> -->
 				</configuration>
 			</plugin>
 
+			<!-- Deploy the artifact -->
 			<plugin>
 				<groupId>org.apache.tomcat.maven</groupId>
 				<artifactId>tomcat7-maven-plugin</artifactId>
 				<version>2.2</version>
 				<configuration>
-					<!-- <url>http://${ingestion-server.url}/manager/text</url> -->
-					<url>http://localhost:8081/manager/text</url>
-					<server>${ingestion-server.name}</server>
+					<url>http://${deploy-server.host}:${deploy-server.port}/manager/text</url>
 					<path>/${project.name}</path>
 					<warFile>target/${project.name}.war</warFile>
 					<update>true</update>
+					<username>deployer</username>
+					<password>deployer</password>
 				</configuration>
 			</plugin>
 
