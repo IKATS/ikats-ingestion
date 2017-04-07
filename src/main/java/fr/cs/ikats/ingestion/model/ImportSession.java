@@ -1,7 +1,7 @@
 package fr.cs.ikats.ingestion.model;
 
+import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -50,7 +50,8 @@ public class ImportSession extends ImportSessionDto {
 	@XmlElement(name = "item")
 	private CopyOnWriteArrayList<ImportItem> itemsInError = new CopyOnWriteArrayList<ImportItem>();;
 	private ImportStatus status;
-	private Date startDate;
+	private Instant startDate;
+	private Instant endDate;
 	/** List of errors */
 	@XmlElementWrapper(name = "errors")
 	@JsonProperty(value = "errors")
@@ -148,14 +149,22 @@ public class ImportSession extends ImportSessionDto {
 		return super.serializer;
 	}
 
-	public Date getStartDate() {
+	public Instant getStartDate() {
 		return startDate;
 	}
 	
-	public void setStartDate(Date startDate) {
+	public void setStartDate(Instant startDate) {
 		this.startDate = startDate;
 	}
 	
+	public Instant getEndDate() {
+		return endDate;
+	}
+
+	public void setEndDate(Instant endDate) {
+		this.endDate = endDate;
+	}
+
 	public List<ImportItem> getItemsToImport() {
 		return itemsToImport;
 	}

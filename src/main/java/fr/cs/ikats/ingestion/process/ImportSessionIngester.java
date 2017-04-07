@@ -1,5 +1,6 @@
 package fr.cs.ikats.ingestion.process;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -151,6 +152,7 @@ public class ImportSessionIngester implements Runnable {
 
 		// Launch the import loop
 		// The state is controlled on the 
+		session.setStartDate(Instant.now());
 
         // Review#147170 cf remarque entete de ImportItemAnalyserThread ... la machine a etats pourrait evoluer ...
         // Review#147170 ... vers if ( CREATED) ... else if ( IMPORTED ) ... 
@@ -212,6 +214,8 @@ public class ImportSessionIngester implements Runnable {
 			logger.error("Interrupted while waiting importItemAnalyserThread to finish", ie);
 		}
 		finally {
+			session.setEndDate(Instant.now());
+
 			// set ingest session final state
 			if (importItemAnalyserThread.state == ImportItemAnalyserState.COMPLETED) {
 				session.setStatus(ImportStatus.COMPLETED);
@@ -284,10 +288,10 @@ public class ImportSessionIngester implements Runnable {
 					
 					// unstack loop
 					Iterator<Future<ImportItem>> iterator = submitedTasks.iterator();
+					// Start index for item batch registering in the dataset
 					int index = 0;
 					while (iterator.hasNext()) {
 						Future<ImportItem> future = (Future<ImportItem>) iterator.next();
-						index++;
 						
 						if (!future.isDone()) {
 							// skip rest of the unstack loop to iterate next.
@@ -324,18 +328,23 @@ public class ImportSessionIngester implements Runnable {
 									break;
 							}
 							
-							// finally removes the current ImportResult out of the stack.
-							iterator.remove();
-							
-							// register a batch of tsuid in the dataset
-							if (index % REGISTER_TSUID_DATASET_BATCH_SIZE == 0 || iterator.hasNext() == false) {
-								registerTsuidsInDataset();
-							}
+							// Increment the index for item batch registering in the dataset
+							index++;
 							
 						} catch (InterruptedException | ExecutionException e) {
 							// FIXME
 							logger.debug("Message: {}, cause: {}, {}", e.getMessage(), e.getCause(), e);
 						}
+						finally {
+							// finally removes the current ImportResult out of the stack.
+							iterator.remove();
+							
+							// register the batch of items in the dataset
+							if (index % REGISTER_TSUID_DATASET_BATCH_SIZE == 0 || iterator.hasNext() == false) {
+								registerTsuidsInDataset();
+							}
+						}
+						
 					}
 				}
 				

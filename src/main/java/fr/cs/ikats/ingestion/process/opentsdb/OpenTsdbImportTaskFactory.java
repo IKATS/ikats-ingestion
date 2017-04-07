@@ -118,13 +118,14 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 				importItem.setEndDate(Instant.ofEpochMilli(jsonizer.getDates()[1]));
 				
 			// } catch (IngestionException | IOException | DataManagerException | IkatsWebClientException e) {
-			} catch (Exception e) {
-				// We need to catch all exceptions because the thread status could not be managed otherwise.
-				FormattingTuple arrayFormat = MessageFormatter.format("Error while processing item for file {} ",importItem.getFile().toString());
+			} 
+			catch (Exception | Error e) {
+				// We need to catch all exceptions and errors because the thread status could not be managed otherwise.
+				FormattingTuple arrayFormat = MessageFormatter.format("Error while processing item {} for file {} ", importItem.getFuncId(), importItem.getFile().toString());
 				logger.error(arrayFormat.getMessage(), e);
 				importItem.addError(e.getMessage());
 				importItem.setStatus(ImportStatus.CANCELLED);
-			}
+			} 
 			finally {
 				
 				// in any case if open, close the "jsonizer" which consequently should close the file 
@@ -222,10 +223,10 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 				try {
 					if (json != null && !json.isEmpty()) {
 						String url = (String) config.getString(ConfigProps.OPENTSDB_IMPORT_URL);
-						logger.debug("Sending request to " + url);
+						logger.debug("Sending chunk #{} for item {}", chunkIndex, importItem.getFuncId());
 						Response response = RequestSender.sendPUTJsonRequest(url, json);
 						ImportResult result = ResponseParser.parseImportResponse(response);
-						logger.debug("Import task finished with result: " + result);
+						logger.debug("Import finished for chunk #{} of item {}", chunkIndex, importItem.getFuncId());
 						
 						// Aggregate the result of this chunk into the item result
 						importItem.addNumberOfSuccess(result.getNumberOfSuccess());
@@ -236,7 +237,7 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 						}
 					} else {
 						logger.error("JSON data is empty");
-						importItem.addError("[chunk #" + chunkIndex + "] No data for chunk #" + chunkIndex);
+						importItem.addError("[chunk #" + chunkIndex + "] No data for that chunk");
 						emptyChuncks ++;
 					}
 				} catch (IkatsWebClientException | ParseException e) {
@@ -256,28 +257,26 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 	     * 
 	     * @param metric
 	     *            the metric name
-	     * @param date
-	     *            the end date of the timeseries
-	     * @param hashMap
+	     * @param startDate
+	     *            the start date of the timeserie
+	     * @param tags
 	     *            the tags
 	     * @return the TSUID
 	     * @throws IkatsWebClientException
 	     *             if request cannot be generated or sent
 	     */
-		// Review#147170 nom arg date ... pas lisible: endDate 
-		// Review#147170 nom arg hashmap ... pas lisible : tags ou tagsMap ?
-	    public String getTSUID(String metric, Long date, Map<String, String> hashMap) throws IkatsWebClientException {
+	    public String getTSUID(String metric, Long startDate, Map<String, String> tags) throws IkatsWebClientException {
 	    	
 	        // Build the tag map
 	        StringBuilder tagSb = new StringBuilder("{");
-	        hashMap.forEach((k, v) -> tagSb.append(k).append("=").append(v).append(","));
+	        tags.forEach((k, v) -> tagSb.append(k).append("=").append(v).append(","));
 	        // remove the trailing "," char
 	        tagSb.replace(tagSb.lastIndexOf(","), tagSb.length(), "}");
 	    	
 			String tsuid = null;
 			String apiUrl = (String) config.getProperty(ConfigProps.OPENTSDB_API_URL); 
 			String url = apiUrl
-			        + urlBuilder.generateMetricQueryUrl(metric, tagSb.toString(), null, null, null, Long.toString(date), null, "show_tsuids");
+			        + urlBuilder.generateMetricQueryUrl(metric, tagSb.toString(), "sum", null, null, Long.toString(startDate), Long.toString(startDate+1), "show_tsuids");
 			Response webResponse = RequestSender.sendGETRequest(url, null);
 			String str = webResponse.readEntity(String.class);
 			logger.debug("GET TSUID response : " + str);
