@@ -20,6 +20,7 @@ import org.slf4j.LoggerFactory;
 import fr.cs.ikats.ingestion.api.ImportSessionDto;
 import fr.cs.ikats.ingestion.exception.IngestionRejectedException;
 import fr.cs.ikats.ingestion.model.ImportSession;
+import fr.cs.ikats.ingestion.model.ImportStatus;
 import fr.cs.ikats.ingestion.model.ModelManager;
 import fr.cs.ikats.ingestion.process.IngestionProcess;
 import fr.cs.ikats.util.concurrent.ExecutorPoolManager;
@@ -64,8 +65,8 @@ public class IngestionService {
     	sessions = modelManager.loadModel();
     	if (sessions == null) {
     		sessions = new ArrayList<ImportSession>();
-	    	}
 	    }
+	}
 		
 	@PreDestroy
     public void applicationShutdown() {
@@ -84,6 +85,12 @@ public class IngestionService {
     // Review#147170 javadoc
 	@Lock(LockType.WRITE)
 	public int addSession(ImportSessionDto session) {
+		
+		ImportSession existingSession = getExistingSession(session);
+		
+		if (existingSession != null) {
+			throw new IngestionRejectedException("The import session exist with id " + existingSession.getId());
+		}
 		
 		ImportSession newSession = new ImportSession(session);
 		this.sessions.add(newSession);
@@ -120,6 +127,72 @@ public class IngestionService {
 		return session;
 	}
 	
+	/**
+	 * <p>Get the {@link ImportSession} instance relative to the corresponding {@link ImportSessionDto} description provided.</p>
+	 * <p>The returned session is compared with the following attributes (in order) :  
+	 * <ol>
+	 *   <li>{@link ImportSessionDto#dataset}</li>
+	 *   <li>{@link ImportSessionDto#pathPattern}</li>
+	 *   <li>{@link ImportSessionDto#funcIdPattern}</li>
+	 * </ol>
+	 * </p>
+	 * @param fromSession the description of the session to search
+	 * @return an existing session or <code>null</code>
+	 */
+	public ImportSession getExistingSession(ImportSessionDto fromSession) {
+		
+		ImportSession existingSession = null;
+		
+		for (ImportSession session : sessions) {
+			if (session.getDataset().equals(fromSession.dataset)) {
+				if (session.getPathPattern().equals(fromSession.pathPattern)) {
+					if (session.getFuncIdPattern().equals(fromSession.funcIdPattern)) {
+						existingSession = session;
+						break;
+					}
+				}
+			}
+		}
+		
+		return existingSession;
+	}
+
+	/**
+	 * Restart the session by getting all non imported items and reset them to the list of items to import, then launch the ingestion process.<br>
+	 * The <code>force</code> option force all items to be reseted, otherwise only the items with {@link ImportStatus#ERROR}, which are ingestion "managed" errors are reseted.
+	 * 
+	 * @param id the id of the session to restart
+	 * @param force to restart all items in error.
+	 */
+	public void restartSession(int id, boolean force) {
+		
+    	ImportSession session = (ImportSession) getSession(id);
+    	
+    	// For each item in error, put it in the list of items to import and change its status.
+		session.getItemsInError().forEach(itemInError -> {
+			if (itemInError.getStatus() != ImportStatus.ERROR || force == true) {
+				// reset only item with status ERROR, or with any status in case of force.
+				try {
+					session.setItemToImport(itemInError);
+					itemInError.setStatus(ImportStatus.CREATED);
+				} catch (Exception e) {
+					logger.error("Error while restting item {} for InError for restarting ingestion: {}", itemInError.getFuncId(), e.getMessage());
+				}
+			}
+		});
+		
+		// Reset the status of the session
+		session.setStatus(ImportStatus.DATASET_REGISTERED);
+		
+		// launch the ingestion
+		startIngestionProcess(session);
+	}
+	
+	/**
+	 * Start a unique thread for ingestion.<br>
+	 * That iteration of IKATS Ingestion support only one ingestion at time.
+	 * @param newSession the session describing the dataset to import
+	 */
 	private void startIngestionProcess(ImportSession newSession) {
 		
 		// launch only one import session
@@ -132,7 +205,7 @@ public class IngestionService {
 		// for that:
 		//   - EPM should not be a Singleton and should be instanciated at the ImportItemTaskFactory init with dedicated config
 		//   - OpenTsdbImportTaskFactory should be Singleton
-	    //   - ...
+		//   - ...
 		// Then that part of the process could run on multiple sessions and use an EPM to manage that.
 		
 		// Start processsing in a thread

@@ -21,6 +21,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import fr.cs.ikats.ingestion.api.ImportSessionDto;
+import fr.cs.ikats.ingestion.exception.IngestionException;
 
 // Review#147170 javadoc resumant le role de cette classe
 // Review#147170 javadoc methodes publiques (y compris getter/setter)
@@ -109,6 +110,21 @@ public class ImportSession extends ImportSessionDto {
 		}
 	}
 	
+	/**
+	 * Move the importItem from the list of itemsInError to the itemsToImport list.
+	 * @param importItem
+	 * @throws IngestionException 
+	 */
+	public void setItemToImport(ImportItem importItem) throws IngestionException {
+		boolean removed = this.itemsInError.remove(importItem);
+		if (!removed) {
+			throw new IngestionException("Could not remove item " + importItem.getFuncId() + "from itemsInError list");
+		} else {
+			this.itemsToImport.add(importItem);
+			logger.debug("Item reset to import: {}", importItem);
+		}
+	}
+	
 	public String toString() {
 	    // Review#147170 toString potentiellement enorme: c'est voulu ? je vois qu'il y a un tag exclude possible
 		return ToStringBuilder.reflectionToString(this);
@@ -171,6 +187,10 @@ public class ImportSession extends ImportSessionDto {
 
 	public List<ImportItem> getItemsImported() {
 		return itemsImported;
+	}
+
+	public List<ImportItem> getItemsInError() {
+		return itemsInError;
 	}
 
 	public ImportStatus getStatus() {
