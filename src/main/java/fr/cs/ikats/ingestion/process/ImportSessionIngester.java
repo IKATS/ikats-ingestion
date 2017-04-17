@@ -3,11 +3,9 @@ package fr.cs.ikats.ingestion.process;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
-import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -15,7 +13,6 @@ import java.util.concurrent.Future;
 
 import javax.ejb.Stateless;
 
-import org.apache.commons.lang3.text.StrSubstitutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,8 +53,6 @@ public class ImportSessionIngester implements Runnable {
 	
 	private MetaDataFacade metaDataFacade;
 
-	private String funcIdPattern;
-	
 	private Logger logger = LoggerFactory.getLogger(ImportSessionIngester.class);
 	
 	@SuppressWarnings("unused")
@@ -77,7 +72,6 @@ public class ImportSessionIngester implements Runnable {
 	public ImportSessionIngester(IngestionProcess ingestionProcess, ImportSession session) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
 		this.process = ingestionProcess;
 		this.session = session;
-		this.funcIdPattern = session.getFuncIdPattern();
 
 		// Get the factory to import session items. The default test implementation is used if none found.
 		String taskFactoryFQN = session.getImporter();
@@ -221,7 +215,7 @@ public class ImportSessionIngester implements Runnable {
 				session.setStatus(ImportStatus.COMPLETED);
 			} else {
 				session.addError("The submitted tasks are not fully analysed, the analyser thread finished with state: " + importItemAnalyserThread.state.name());
-				session.setStatus(ImportStatus.STOPPED);
+				session.setStatus(ImportStatus.ERROR);
 			}
 		}
 
@@ -312,7 +306,6 @@ public class ImportSessionIngester implements Runnable {
 								case RUNNING:
 									// The import task is running
 								case COMPLETED:
-								case STOPPED:
 									break;
 								case IMPORTED:
 									// move the item as imported in the session only if import is completed
@@ -321,6 +314,7 @@ public class ImportSessionIngester implements Runnable {
 									registerMetadata(importItem);
 									perpareToRegisterInDataset(importItem);
 									break;
+								case ERROR:
 								case CANCELLED:
 								default:
 									// move the item in the errors stack
@@ -418,7 +412,7 @@ public class ImportSessionIngester implements Runnable {
 					logger.debug(message, e);
 				}
 				
-				session.setStatus(ImportStatus.STOPPED);
+				session.setStatus(ImportStatus.ERROR);
 			}
 			finally {
 				// clear the list for next batch of tsuids.
@@ -433,19 +427,11 @@ public class ImportSessionIngester implements Runnable {
 		 */
 		private void registerFunctionalIdent(ImportItem importItem) {
 			
-			// format the functional identifier from pattern and tags
-			Map<String, String> valuesMap = new HashMap<String, String>();
-			valuesMap.putAll(importItem.getTags());
-			valuesMap.put("metric", importItem.getMetric());
-			StrSubstitutor sub = new StrSubstitutor(valuesMap);
-			String funcId = sub.replace(funcIdPattern);
-			importItem.setFuncId(funcId);
-			
 			FunctionalIdentifier registeredFID = metaDataFacade.getFunctionalIdentifierByTsuid(importItem.getTsuid());
 			if (registeredFID == null) {
 				// We do not have an existing FID in the database. Create it.
 				try {
-					metaDataFacade.persistFunctionalIdentifier(importItem.getTsuid(), funcId);
+					metaDataFacade.persistFunctionalIdentifier(importItem.getTsuid(), importItem.getFuncId());
 				} catch (IkatsDaoException e) {
 					// An error occured during persist of the functional identifier
 					String message = "Can't persist functional identifier '" +  importItem.getFuncId() + "' for tsuid " + importItem.getTsuid() + " ; item=" + importItem;
@@ -458,15 +444,15 @@ public class ImportSessionIngester implements Runnable {
 						logger.debug(message, e);
 					}
 					
-					importItem.setStatus(ImportStatus.STOPPED);
+					importItem.setStatus(ImportStatus.ERROR);
 				}
 			} 
 			else { // We already have a functional identifier for that TSUID... 
 				
-				if (! registeredFID.getFuncId().equals(funcId)) {
+				if (! registeredFID.getFuncId().equals(importItem.getFuncId())) {
 					// and it is not the same...
 					logger.warn("The TSDUID {} is already registered with Functional Identifier '{}' but the current calculated is '{}'. Keeping the old one.",
-							importItem.getTsuid(), registeredFID.getFuncId(), funcId);
+							importItem.getTsuid(), registeredFID.getFuncId(), importItem.getFuncId());
 					importItem.setFuncId(registeredFID.getFuncId());
 				}
 				// else : nothing to do the exisitng FID is the same.
@@ -539,7 +525,7 @@ public class ImportSessionIngester implements Runnable {
 				}
 				
 				// mark the item not fully "ingested"
-				importItem.setStatus(ImportStatus.STOPPED);
+				importItem.setStatus(ImportStatus.ERROR);
 			}
 		}
 

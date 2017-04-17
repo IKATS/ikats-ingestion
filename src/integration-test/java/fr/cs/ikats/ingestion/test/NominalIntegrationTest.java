@@ -48,7 +48,7 @@ public class NominalIntegrationTest {
 		while (true) {
 			if (session.getStatus() == ImportStatus.COMPLETED
 					|| session.getStatus() == ImportStatus.CANCELLED
-					|| session.getStatus() == ImportStatus.STOPPED) {
+					|| session.getStatus() == ImportStatus.ERROR) {
 				break;
 			}
 			

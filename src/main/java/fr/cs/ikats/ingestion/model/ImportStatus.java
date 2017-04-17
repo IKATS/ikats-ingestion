@@ -8,7 +8,7 @@ public enum ImportStatus {
 	DATASET_REGISTERED,
 	RUNNING,
     IMPORTED,	
-	STOPPED,
+	ERROR,
 	CANCELLED,
 	COMPLETED
 

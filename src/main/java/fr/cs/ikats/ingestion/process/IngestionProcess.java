@@ -93,7 +93,7 @@ public class IngestionProcess implements Runnable {
 		Thread runner = null;
 		while(session.getStatus() != ImportStatus.COMPLETED
 				&& session.getStatus() != ImportStatus.CANCELLED
-				&& session.getStatus() != ImportStatus.STOPPED) {
+				&& session.getStatus() != ImportStatus.ERROR) {
 			
 			switch (session.getStatus()) {
 				case CREATED:

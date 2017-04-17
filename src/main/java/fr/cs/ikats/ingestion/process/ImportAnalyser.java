@@ -14,6 +14,7 @@ import java.util.regex.PatternSyntaxException;
 
 import javax.ejb.EJB;
 
+import org.apache.commons.lang3.text.StrSubstitutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.helpers.FormattingTuple;
@@ -43,6 +44,8 @@ public class ImportAnalyser implements Runnable {
 
 	// Review#147170 commentaire
 	private Map<String, Integer> namedGroups;
+
+	private String funcIdPattern;
 	
 	// Review#147170 
 	public ImportAnalyser(ImportSession session) {
@@ -78,6 +81,9 @@ public class ImportAnalyser implements Runnable {
 			// get out the run
 			return;
 		}
+		
+		// Stores the funcIdPattern for future use
+		funcIdPattern = session.getFuncIdPattern();
 		
 		// Finally walk over the directory tree to find the files matching our pathPattern regex and provide them as ImportItems with their tags. 
 		walkOverDataset();
@@ -139,6 +145,9 @@ public class ImportAnalyser implements Runnable {
 		// extract metric and tags
 		extractMetricAndTags(item, matcher);
 		
+		// Provide the calculated funcId to the item
+		createFuncId(item);
+		
 		session.getItemsToImport().add(item);
 		logger.debug("File {} added to import session of dataset {}", importFile.getName(), session.getDataset());
 	}
@@ -146,7 +155,7 @@ public class ImportAnalyser implements Runnable {
 	/**
 	 * Based on the {@link ImportSessionDto.pathPattern} definition, extract and store metric and tags and metric
 	 * @param item the item on which extract metric and tags.
-	 * @param matcher the 
+	 * @param matcher the configured engine that will parse item data for the tags and the metric
 	 * Review#147170 a finir 
 	 */
 	private void extractMetricAndTags(ImportItem item, Matcher matcher) {
@@ -163,6 +172,20 @@ public class ImportAnalyser implements Runnable {
 		
 		item.setTags(tagsMap);
 		item.setMetric(matcher.group(config.getString(IngestionConfig.METRIC_REGEX_GROUPNAME)));
+	}
+	
+	/**
+	 * Format the functional identifier from pattern information of the session and already discovered tags.
+	 * @param item the item for which the func id should be calculated
+	 */
+	private void createFuncId(ImportItem item) {
+		// format the functional identifier from pattern and tags
+		Map<String, String> valuesMap = new HashMap<String, String>();
+		valuesMap.putAll(item.getTags());
+		valuesMap.put("metric", item.getMetric());
+		StrSubstitutor sub = new StrSubstitutor(valuesMap);
+		String funcId = sub.replace(funcIdPattern);
+		item.setFuncId(funcId);
 	}
 
 }
