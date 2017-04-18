@@ -514,7 +514,7 @@ public class ImportSessionIngester implements Runnable {
 			}
 			catch (IkatsDaoException e) {
 				// An error occured during persist or update
-				String message = "Can't persist metadata for tsuid " + importItem.getTsuid() + " ; item=" + importItem;
+				String message = "Can't persist metadata for tsuid " + importItem.getTsuid() + " ; item=" + importItem.getFuncId();
 				importItem.addError(message);
 				importItem.addError(e.getMessage());
 				if (!logger.isDebugEnabled()) {

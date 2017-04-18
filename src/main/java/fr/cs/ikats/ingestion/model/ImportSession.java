@@ -87,11 +87,11 @@ public class ImportSession extends ImportSessionDto {
 	public void setItemImported(ImportItem importItem) {
 		boolean removed = this.itemsToImport.remove(importItem);
 		if (!removed) {
-			logger.error("Could not remove item from list; {}", importItem); 
+			logger.error("Could not remove item from list; {}", importItem.getFuncId()); 
 			// FIXME throw an exception here
 		} else {
 			this.itemsImported.add(importItem);
-			logger.debug("Item imported: {}", importItem);
+			logger.debug("Item imported: {}", importItem.getFuncId());
 		}
 	}
 	
@@ -102,11 +102,11 @@ public class ImportSession extends ImportSessionDto {
 	public void setItemInError(ImportItem importItem) {
 		boolean removed = this.itemsToImport.remove(importItem);
 		if (!removed) {
-			logger.error("Could not remove item from list; {}", importItem);
+			logger.error("Could not remove item from list; {}", importItem.getFuncId());
 			// FIXME throw an exception here
 		} else {
 			this.itemsInError.add(importItem);
-			logger.debug("Item not imported: {}", importItem);
+			logger.debug("Item not imported: {}", importItem.getFuncId());
 		}
 	}
 	
@@ -121,7 +121,7 @@ public class ImportSession extends ImportSessionDto {
 			throw new IngestionException("Could not remove item " + importItem.getFuncId() + "from itemsInError list");
 		} else {
 			this.itemsToImport.add(importItem);
-			logger.debug("Item reset to import: {}", importItem);
+			logger.debug("Item reset to import: {}", importItem.getFuncId());
 		}
 	}
 	
