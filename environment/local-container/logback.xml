@@ -19,7 +19,7 @@
 	
   	<logger name="fr.cs.ikats" level="DEBUG" />
 
-    <root level="ERROR">
+    <root level="DEBUG">
     	<appender-ref ref="STDOUT" />
 	</root>
     

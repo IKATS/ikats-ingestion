@@ -11,6 +11,7 @@ import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlElementWrapper;
 import javax.xml.bind.annotation.XmlRootElement;
 import javax.xml.bind.annotation.XmlTransient;
+import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringExclude;
@@ -19,6 +20,7 @@ import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.migesok.jaxb.adapter.javatime.InstantXmlAdapter;
 
 import fr.cs.ikats.ingestion.api.ImportSessionDto;
 import fr.cs.ikats.ingestion.exception.IngestionException;
@@ -51,7 +53,9 @@ public class ImportSession extends ImportSessionDto {
 	@XmlElement(name = "item")
 	private CopyOnWriteArrayList<ImportItem> itemsInError = new CopyOnWriteArrayList<ImportItem>();;
 	private ImportStatus status;
+	@XmlJavaTypeAdapter(value = InstantXmlAdapter.class)
 	private Instant startDate;
+	@XmlJavaTypeAdapter(value = InstantXmlAdapter.class)
 	private Instant endDate;
 	/** List of errors */
 	@XmlElementWrapper(name = "errors")
@@ -207,7 +211,7 @@ public class ImportSession extends ImportSessionDto {
 			errors = new ArrayList<String>();
 		}
 		
-		errors.add(error);
+		errors.add(Instant.now() + " - " + error);
 	}
 
 }

@@ -282,8 +282,6 @@ public class ImportSessionIngester implements Runnable {
 					
 					// unstack loop
 					Iterator<Future<ImportItem>> iterator = submitedTasks.iterator();
-					// Start index for item batch registering in the dataset
-					int index = 0;
 					while (iterator.hasNext()) {
 						Future<ImportItem> future = (Future<ImportItem>) iterator.next();
 						
@@ -322,9 +320,6 @@ public class ImportSessionIngester implements Runnable {
 									break;
 							}
 							
-							// Increment the index for item batch registering in the dataset
-							index++;
-							
 						} catch (InterruptedException | ExecutionException e) {
 							// FIXME
 							logger.debug("Message: {}, cause: {}, {}", e.getMessage(), e.getCause(), e);
@@ -332,11 +327,6 @@ public class ImportSessionIngester implements Runnable {
 						finally {
 							// finally removes the current ImportResult out of the stack.
 							iterator.remove();
-							
-							// register the batch of items in the dataset
-							if (index % REGISTER_TSUID_DATASET_BATCH_SIZE == 0 || iterator.hasNext() == false) {
-								registerTsuidsInDataset();
-							}
 						}
 						
 					}
@@ -390,6 +380,13 @@ public class ImportSessionIngester implements Runnable {
 			
 			// add the tsuid to the batch
 			tsuidToRegister.add(importItem.getTsuid());
+			
+			// register the batch of items in the dataset if size is raised 
+			// or if there is no more items to import
+			if (tsuidToRegister.size() % REGISTER_TSUID_DATASET_BATCH_SIZE == 0 
+					|| session.getItemsToImport().size() == 0) {
+				registerTsuidsInDataset();
+			}
 		}
 		
 		/**
@@ -444,6 +441,7 @@ public class ImportSessionIngester implements Runnable {
 						logger.debug(message, e);
 					}
 					
+					session.setItemInError(importItem);
 					importItem.setStatus(ImportStatus.ERROR);
 				}
 			} 
@@ -525,6 +523,7 @@ public class ImportSessionIngester implements Runnable {
 				}
 				
 				// mark the item not fully "ingested"
+				session.setItemInError(importItem);
 				importItem.setStatus(ImportStatus.ERROR);
 			}
 		}
