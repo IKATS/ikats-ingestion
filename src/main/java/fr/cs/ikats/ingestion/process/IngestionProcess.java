@@ -54,6 +54,11 @@ public class IngestionProcess implements Runnable {
 	 * @return the dataset facade service
 	 */
 	public DataSetFacade getDatasetService() {
+		
+		if (dataSetFacade == null) {
+			dataSetFacade = new DataSetFacade();
+		}
+		
 		return dataSetFacade;
 	}
 
