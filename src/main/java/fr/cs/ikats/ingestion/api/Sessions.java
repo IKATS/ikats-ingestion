@@ -72,6 +72,25 @@ public class Sessions {
     	}
     }
     
+    /**
+     * Return the stats of the session
+     * @param id
+     * @return
+     */
+    @GET
+    @Path("{id}/stats")
+    @Produces(value = {MediaType.APPLICATION_XML, MediaType.APPLICATION_JSON})
+    public Response getSessionStats(@PathParam(value = "id") int id) {
+
+    	ImportSession session = (ImportSession) app.getSession(id);
+    	
+    	if (session != null) {
+    		return Response.ok(session.getStats()).build();
+    	} else {
+    		return Response.status(Status.NOT_FOUND).build();
+    	}
+    }
+    
     // Review#147170 javadoc manquante
     @POST
     @Consumes(MediaType.APPLICATION_JSON)

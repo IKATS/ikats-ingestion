@@ -33,6 +33,7 @@ import fr.cs.ikats.ingestion.exception.IngestionException;
 import fr.cs.ikats.ingestion.exception.NoPointsToImportException;
 import fr.cs.ikats.ingestion.model.ImportItem;
 import fr.cs.ikats.ingestion.model.ImportStatus;
+import fr.cs.ikats.ingestion.model.SessionStats;
 import fr.cs.ikats.ingestion.process.AbstractImportTaskFactory;
 import fr.cs.ikats.util.configuration.ConfigProperties;
 import fr.cs.ikats.util.configuration.IkatsConfiguration;
@@ -106,6 +107,10 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 				// 2- Get the resulting TSUID
 		        String tsuid = getTSUID(importItem.getMetric(), jsonizer.getDates()[0], importItem.getTags());
 				importItem.setImportEndDate(Instant.now());
+				
+				// 3- Provide ImportItem with imported key values
+				importItem.setStartDate(Instant.ofEpochMilli(jsonizer.getDates()[0]));
+				importItem.setEndDate(Instant.ofEpochMilli(jsonizer.getDates()[1]));
 
 		        importItem.setTsuid(tsuid);
 		        if (tsuid == null || tsuid.isEmpty()) {
@@ -113,10 +118,12 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 		        } 
 		        
 		        importItem.setStatus(ImportStatus.IMPORTED);
-		        
-		        // 3- Provide ImportItem with imported key values
-				importItem.setStartDate(Instant.ofEpochMilli(jsonizer.getDates()[0]));
-				importItem.setEndDate(Instant.ofEpochMilli(jsonizer.getDates()[1]));
+				
+				// Update stats
+				SessionStats stats = importItem.getSession().getStats();
+				stats.addPoints(jsonizer.getTotalPointsRead(), 
+						importItem.getNumberOfSuccess(),
+						importItem.getNumberOfFailed());
 			}
 			catch (IngestionException | IngestionError e) {
 				

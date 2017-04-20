@@ -61,7 +61,10 @@ public class ImportSession extends ImportSessionDto {
 	@XmlElementWrapper(name = "errors")
 	@JsonProperty(value = "errors")
 	@XmlElement(name = "message")	
-	public List<String> errors;
+	private List<String> errors;
+	
+	/** Session stats */
+	private SessionStats stats;
 	
 	@ToStringExclude
 	@XmlTransient
@@ -82,6 +85,8 @@ public class ImportSession extends ImportSessionDto {
 		this.importer = simple.importer;
 		this.serializer = simple.serializer;
 		this.status = ImportStatus.CREATED;
+		
+		this.stats = new SessionStats(simple, this);
 	}
 	
 	/**
@@ -89,12 +94,17 @@ public class ImportSession extends ImportSessionDto {
 	 * @param importItem
 	 */
 	public void setItemImported(ImportItem importItem) {
-		boolean removed = this.itemsToImport.remove(importItem);
+		boolean removed = itemsToImport.remove(importItem);
 		if (!removed) {
 			logger.error("Could not remove item from list; {}", importItem.getFuncId()); 
 			// FIXME throw an exception here
 		} else {
-			this.itemsImported.add(importItem);
+			itemsImported.add(importItem);
+			
+			// adjust stats
+			stats.setNumberOfItemsImported(itemsImported.size());
+			stats.setNumberOfItemsToImport(itemsToImport.size());
+
 			logger.debug("Item imported: {}", importItem.getFuncId());
 		}
 	}
@@ -104,12 +114,17 @@ public class ImportSession extends ImportSessionDto {
 	 * @param importItem
 	 */
 	public void setItemInError(ImportItem importItem) {
-		boolean removed = this.itemsToImport.remove(importItem);
+		boolean removed = itemsToImport.remove(importItem);
 		if (!removed) {
 			logger.error("Could not remove item from list; {}", importItem.getFuncId());
 			// FIXME throw an exception here
 		} else {
-			this.itemsInError.add(importItem);
+			itemsInError.add(importItem);
+
+			// adjust stats
+			stats.setNumberOfItemsInError(itemsInError.size());
+			stats.setNumberOfItemsToImport(itemsToImport.size());
+			
 			logger.debug("Item not imported: {}", importItem.getFuncId());
 		}
 	}
@@ -120,11 +135,16 @@ public class ImportSession extends ImportSessionDto {
 	 * @throws IngestionException 
 	 */
 	public void setItemToImport(ImportItem importItem) throws IngestionException {
-		boolean removed = this.itemsInError.remove(importItem);
+		boolean removed = itemsInError.remove(importItem);
 		if (!removed) {
 			throw new IngestionException("Could not remove item " + importItem.getFuncId() + "from itemsInError list");
 		} else {
-			this.itemsToImport.add(importItem);
+			itemsToImport.add(importItem);
+
+			// adjust stats
+			stats.setNumberOfItemsToImport(itemsToImport.size());
+			stats.setNumberOfItemsInError(itemsInError.size());
+			
 			logger.debug("Item reset to import: {}", importItem.getFuncId());
 		}
 	}
@@ -212,6 +232,13 @@ public class ImportSession extends ImportSessionDto {
 		}
 		
 		errors.add(Instant.now() + " - " + error);
+	}
+
+	/**
+	 * @return the stats
+	 */
+	public SessionStats getStats() {
+		return stats;
 	}
 
 }

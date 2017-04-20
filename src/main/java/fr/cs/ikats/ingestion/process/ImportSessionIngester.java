@@ -1,6 +1,5 @@
 package fr.cs.ikats.ingestion.process;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -146,7 +145,8 @@ public class ImportSessionIngester implements Runnable {
 
 		// Launch the import loop
 		// The state is controlled on the 
-		session.setStartDate(Instant.now());
+		session.getStats().timestampIngestion(true);
+		session.setStartDate(session.getStats().getDateIngestionStarted());
 
         // Review#147170 cf remarque entete de ImportItemAnalyserThread ... la machine a etats pourrait evoluer ...
         // Review#147170 ... vers if ( CREATED) ... else if ( IMPORTED ) ... 
@@ -208,7 +208,8 @@ public class ImportSessionIngester implements Runnable {
 			logger.error("Interrupted while waiting importItemAnalyserThread to finish", ie);
 		}
 		finally {
-			session.setEndDate(Instant.now());
+			session.getStats().timestampIngestion(false);
+			session.setEndDate(session.getStats().getDateIngestionCompleted());
 
 			// set ingest session final state
 			if (importItemAnalyserThread.state == ImportItemAnalyserState.COMPLETED) {

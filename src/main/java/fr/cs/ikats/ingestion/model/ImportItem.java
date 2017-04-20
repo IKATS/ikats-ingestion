@@ -213,5 +213,9 @@ public class ImportItem {
 	public void addNumberOfFailed(long numberOfFailed) {
 		this.numberOfFailed += numberOfFailed;
 	}
+
+	public ImportSession getSession() {
+		return this.importSession;
+	}
 	
 }
