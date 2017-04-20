@@ -170,7 +170,7 @@ public class IngestionService {
     	
     	// For each item in error, put it in the list of items to import and change its status.
 		session.getItemsInError().forEach(itemInError -> {
-			if (itemInError.getStatus() != ImportStatus.ERROR || force == true) {
+			if (itemInError.getStatus() == ImportStatus.ERROR || force == true) {
 				// reset only item with status ERROR, or with any status in case of force.
 				try {
 					session.setItemToImport(itemInError);

@@ -272,6 +272,13 @@ public class ImportSessionIngester implements Runnable {
 		@Override
 		public void run() {
 
+			if (state == ImportItemAnalyserState.SHUTINGDOWN) {
+				// case when stop() call was raised before Thread.start() has launched the current run() method
+				logger.debug("Stopped before any run");
+				state = ImportItemAnalyserState.COMPLETED;
+				return;
+			}
+			
 			// Start the loop in running state.
 			state = ImportItemAnalyserState.RUNNING;
 			
@@ -344,7 +351,7 @@ public class ImportSessionIngester implements Runnable {
 						if (submitedTasks.size() == 0) {
 							// let an ultimate chance for tasks to finish
 							state = ImportItemAnalyserState.LASTPASS;
-							logger.debug("Last pass in the loop"); 
+							logger.trace("Last pass in the loop"); 
 						}
 					case RUNNING:
 					default: // continue to loop
@@ -357,14 +364,15 @@ public class ImportSessionIngester implements Runnable {
 						}
 				}
 			}
-			logger.info("Finished running submitedTasks.size={}", submitedTasks.size()); 
+			logger.info("Finished analyzing sent tasks for session {} on dataset {}", session.getId(), session.getDataset()); 
+			logger.debug("submitedTasks.size={}", submitedTasks.size()); 
 		}
 		
 		/**
 		 * Shutdown the thread by ending the loop with a last run.
 		 */
 		public void stop() {
-			// used in the run() loop
+			// used in the run() loop of ImportSessionIngester
 			state = ImportItemAnalyserState.SHUTINGDOWN;
 		}
 		
