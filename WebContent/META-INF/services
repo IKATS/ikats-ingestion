@@ -1,3 +1,0 @@
-com.fasterxml.jackson.jaxrs.json.JacksonJaxbJsonProvider
-com.fasterxml.jackson.jaxrs.json.JsonMappingExceptionMapper
-com.fasterxml.jackson.jaxrs.json.JsonParseExceptionMapper

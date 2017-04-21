@@ -1,0 +1,9 @@
+{
+	"dataset": "TI_Ingestion_1",
+	"description": "Dataset de test pour l'outil d'import",
+	"rootPath": "dataset",
+	"pathPattern": "\\/DAR\\/(?<AircraftIdentifier>\\w*)\\/(?<metric>.*?)/raw_(?<FlightIdentifier>.*)\\.csv",
+	"funcIdPattern": "${AircraftIdentifier}_${FlightIdentifier}_${metric}",
+	"serializer": "fr.cs.ikats.datamanager.client.opentsdb.importer.CommonDataJsonIzer",
+	"importer": "fr.cs.ikats.ingestion.process.opentsdb.OpenTsdbImportTaskFactory"
+}

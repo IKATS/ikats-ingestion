@@ -16,6 +16,12 @@ import fr.cs.ikats.ts.dataset.DataSetFacade;
 import fr.cs.ikats.ts.dataset.model.DataSet;
 import fr.cs.ikats.util.concurrent.ExecutorPoolManager;
 
+/**
+ *
+ * That class represent a thread that manage the full ingestion of a single {@link ImportSession} 
+ * @author ftoral
+ *
+ */
 public class IngestionProcess implements Runnable {
 
 	private ManagedThreadFactory threadFactory;
@@ -25,6 +31,12 @@ public class IngestionProcess implements Runnable {
 	private Logger logger = LoggerFactory.getLogger(IngestionProcess.class);
 	private DataSetFacade dataSetFacade;
 
+	/**
+	 * Creates the thread for a {@link ImportSession session}, with a specific threadFactory that is provided by the J2EE container and an preconfigured {@link ExecutorPoolManager} to submit import tasks. 
+	 * @param session the description of the ingestion session
+	 * @param threadFactory the container thread facility 
+	 * @param executorPoolManager a specific thread queue for import tasks
+	 */
 	public IngestionProcess(ImportSession session, ManagedThreadFactory threadFactory, ExecutorPoolManager executorPoolManager) {
 		this.threadFactory = threadFactory;
 		this.session = session;
@@ -42,10 +54,33 @@ public class IngestionProcess implements Runnable {
 	 * @return the dataset facade service
 	 */
 	public DataSetFacade getDatasetService() {
+		
+		if (dataSetFacade == null) {
+			dataSetFacade = new DataSetFacade();
+		}
+		
 		return dataSetFacade;
 	}
 
-	@Override
+	/**
+	 * <p>That thread is designed to loop until an {@link ImportSession} is declared {@link ImportStatus#IMPORTED IMPORTED}.<br>
+	 * At each stage, of {@link ImportStatus}, it launches a new task, until IMPORTED.</p>
+	 * 
+	 * <p>Before that thread, when the {@link ImportSession} request is recieved by the application, the status is CREATED. Then the state machine runs.
+	 * </p>
+	 * 
+	 * When the sessions is:
+	 * <ul>
+	 *   <li>CREATED, then a {@link ImportAnalyser} runs to analyse the dataset and the TS to ingest/import.<br>
+	 *   When done, the state is upgraded to
+	 *   <li>ANALYSED, then the dataset is registered ({@link IngestionProcess#registerDataset(ImportSession) registerDataset(ImportSession)}) without TSUIDS.<br>
+	 *   When done, the state is upgraded to
+	 *   <li>DATASET_REGISTERED, then a new thread launches an {@link ImportSessionIngester}.
+	 *   <li>During ingestion, the session should be in state RUNNING, and the {@link ImportSessionIngester} thread is tested to be in a live state.<br>
+	 *   A completion, the state is upgraded to 
+	 *   <li>COMPLETED 
+	 * </ul>
+	 */
 	public void run() {
 		
 		// Implement life cycle :
@@ -58,10 +93,12 @@ public class IngestionProcess implements Runnable {
 		// 5- Loop to 2 until each item is imported if previous analyse permits it.
 		
 		// manage only one ImportSession
+	    // Review#147170 expliquer l'interet d'un sous-thread runner unique de ce thread IngestionProcess ... obligé ?
+	    // Review#147170 on pourrait utiliser directement Runnable::run() sinon (donc peu de modifs)
 		Thread runner = null;
 		while(session.getStatus() != ImportStatus.COMPLETED
 				&& session.getStatus() != ImportStatus.CANCELLED
-				&& session.getStatus() != ImportStatus.STOPPED) {
+				&& session.getStatus() != ImportStatus.ERROR) {
 			
 			switch (session.getStatus()) {
 				case CREATED:
@@ -113,16 +150,20 @@ public class IngestionProcess implements Runnable {
 					// finished.
 					break;
 				default:
+				    // Review#147170 pourqoi pas gerer l'exception maintenant ?
 					// TODO manage an exception here when implementation will be full
 					//break;
 					// For instance, set import cancelled :
 					session.setStatus(ImportStatus.CANCELLED);
 					continue;
 			}
-			
+			// Review#147170 si on garde le type Thread pour runner:
+			// Review#147170   pourquoi eloigner ce bout de code des start() ? ...
+			// Review#147170   j'aurais fait une methode privee joinRunner(...), et appelé joinRunner(runner) avant les break ...
+			// Review#147170 si on abandonne le type Thread pour runner => Runnable: remplacer start() par run() ... et supprimer ce code de join
 			if (runner != null && runner.isAlive()) {
 				try {
-					// Lock that thread until nested thread is finished
+					// Lock the current thread until the new nested process thread is finished
 					runner.join();
 				} catch (InterruptedException ie) {
 					// TODO manage error ?
@@ -146,7 +187,11 @@ public class IngestionProcess implements Runnable {
 			DataSet dataSet = dataSetFacade.getDataSet(session.getDataset());
 			logger.warn("Dataset {} already registered", dataSet.getName());
 		}
+	
 		// FIXME : to be changed in the DAO, when no dataset with that name is found, the DAO raises an Exception. It should instead return null.
+		// Review#147170 attention effet de bord FIXME: IkatsDaoMissingRessource est associée à un handler d'erreur pour les codes
+		// Review#147170 de retour Rest: si on retourne null il faudra corriger les services Rest impactés ...
+		// Review#147170 sinon: faire un service hasDataset(...) sur la facade ? 
 		catch (IkatsDaoMissingRessource e) {
 			try {
 				// register only if the dataset doesn't exists in database

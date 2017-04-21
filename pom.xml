@@ -12,13 +12,146 @@
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<jersey.version>2.23.2</jersey.version>
-		<jackson.version>2.3.0</jackson.version>
+		<jackson.version>2.8.4</jackson.version>
 		<powermock.version>1.6.5</powermock.version>
 	</properties>
 
+	<profiles>
+		<!-- The Configuration of the development profile -->
+		<profile>
+			<id>dev</id>
+			<activation>
+				<activeByDefault>true</activeByDefault>
+			</activation>
+			<properties>
+				<!-- Specifies the build.profile.id property that must be equal than 
+					the name of the directory that contains the profile specific configuration 
+					file. Because the name of the directory that contains the configuration file 
+					of the development profile is dev, we must set the value of the build.profile.id 
+					property to dev. -->
+				<build.profile.id>dev</build.profile.id>
+				<!-- Only unit tests are run when the development profile is active -->
+				<skip.integration.tests>true</skip.integration.tests>
+				<skip.system.tests>true</skip.system.tests>
+				<skip.unit.tests>false</skip.unit.tests>
+			</properties>
+		</profile>
+		<!-- The Configuration of the integration-test profile -->
+		<profile>
+			<id>integration-test</id>
+			<properties>
+				<build.profile.id>integration-test</build.profile.id>
+				<skip.integration.tests>false</skip.integration.tests>
+				<skip.system.tests>true</skip.system.tests>
+				<skip.unit.tests>true</skip.unit.tests>
+			</properties>
+		</profile>
+		<!-- The Configuration of the system-test profile -->
+		<profile>
+			<id>system-test</id>
+			<properties>
+				<build.profile.id>system-test</build.profile.id>
+				<skip.integration.tests>false</skip.integration.tests>
+				<skip.system.tests>false</skip.system.tests>
+				<skip.unit.tests>true</skip.unit.tests>
+			</properties>
+		</profile>
+		<profile>
+			<id>int-target</id>
+			<properties>
+				<deploy-server.host>172.28.15.84</deploy-server.host>
+				<deploy-server.port>8181</deploy-server.port>
+			</properties>
+		</profile>
+		<profile>
+			<id>int-b-target</id>
+			<properties>
+				<deploy-server.host>172.28.15.14</deploy-server.host>
+				<deploy-server.port>8181</deploy-server.port>
+			</properties>
+		</profile>
+		<profile>
+			<id>preprod-target</id>
+			<properties>
+				<deploy-server.host>172.28.15.89</deploy-server.host>
+				<deploy-server.port>8181</deploy-server.port>
+			</properties>
+		</profile>
+		<profile>
+			<id>local-container-target</id>
+			<properties>
+				<deploy-server.host>127.0.0.1</deploy-server.host>
+				<deploy-server.port>8081</deploy-server.port>
+			</properties>
+		</profile>
+	</profiles>
+
 	<build>
 		<finalName>${project.artifactId}</finalName>
+
 		<plugins>
+		    <!-- Configure the build paths -->
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>build-helper-maven-plugin</artifactId>
+				<version>3.0.0</version>
+				<executions>
+					<!-- Add a new sources and resources directory to our build for integration 
+						and system tests -->
+					<execution>
+						<id>add-integration-test-sources</id>
+						<phase>generate-test-sources</phase>
+						<goals>
+							<goal>add-test-source</goal>
+						</goals>
+						<configuration>
+							<sources>
+								<source>src/integration-test/java</source>
+								<source>src/system-test/java</source>
+							</sources>
+						</configuration>
+					</execution>
+					<execution>
+						<id>add-integration-test-resources</id>
+						<phase>generate-test-resources</phase>
+						<goals>
+							<goal>add-test-resource</goal>
+						</goals>
+						<configuration>
+							<resources>
+								<resource>
+									<directory>src/integration-test/resources</directory>
+								</resource>
+								<resource>
+									<directory>src/system-test/resources</directory>
+								</resource>
+							</resources>
+						</configuration>
+					</execution>
+					<!-- Build the war by copying the $target environment passed when running mvn -Dtarget=xxx
+					/!\ TODO a modifier dans une future itération pour permettre de construire un WAR unique pour tous les environnements
+					Et selectionner l'environement au runtime.
+					A lire : 
+					- https://dzone.com/articles/maven-profile-best-practices et ses renois
+					- http://stackoverflow.com/questions/13956651/externalizing-tomcat-webapp-config-from-war-file/26146742#26146742
+					 -->
+					<execution>
+						<id>add-target-environment-resources</id>
+						<phase>generate-resources</phase>
+						<goals>
+							<goal>add-resource</goal>
+						</goals>
+						<configuration>
+							<resources>
+								<resource>
+									<directory>environment/${target}</directory>
+								</resource>
+							</resources>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+
 			<!--Compile the sources -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
@@ -34,42 +167,24 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-war-plugin</artifactId>
-				<version>2.1.1</version>
+				<version>3.0.0</version>
 				<configuration>
 					<failOnMissingWebXml>false</failOnMissingWebXml>
-					<archiveClasses>true</archiveClasses>
-					<webResources>
-						<resource>
-							<directory>src/main/resources</directory>
-							<targetPath>WEB-INF/classes</targetPath>
-							<includes>
-								<include>**/*</include>
-							</includes>
-						</resource>
-						<resource>
-							<directory>src/main/webapp</directory>
-							<targetPath></targetPath>
-							<includes>
-								<include>**/*</include>
-							</includes>
-						</resource>
-						<resource>
-							<!-- Overrides default resources with target env -->
-							<directory>environments/${target}/resources</directory>
-							<targetPath>WEB-INF/classes</targetPath>
-							<includes>
-								<include>**/*</include>
-							</includes>
-						</resource>
-						<resource>
-							<!-- Overrides default webapp with target env -->
-							<directory>environments/${target}/webapp</directory>
-							<targetPath></targetPath>
-							<includes>
-								<include>**/*</include>
-							</includes>
-						</resource>
-					</webResources>
+				</configuration>
+			</plugin>
+
+			<!-- Deploy the artifact -->
+			<plugin>
+				<groupId>org.apache.tomcat.maven</groupId>
+				<artifactId>tomcat7-maven-plugin</artifactId>
+				<version>2.2</version>
+				<configuration>
+					<url>http://${deploy-server.host}:${deploy-server.port}/manager/text</url>
+					<path>/${project.name}</path>
+					<warFile>target/${project.name}.war</warFile>
+					<update>true</update>
+					<username>deployer</username>
+					<password>deployer</password>
 				</configuration>
 			</plugin>
 
@@ -128,7 +243,7 @@
 		<dependency>
 			<groupId>ch.qos.logback</groupId>
 			<artifactId>logback-classic</artifactId>
-			<version>1.1.7</version>
+			<version>1.2.3</version>
 		</dependency>
 
 		<dependency>
@@ -166,6 +281,20 @@
 		</dependency>
 
 		<dependency>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
+			<version>42.0.0</version>
+		</dependency>
+
+		<dependency>
+			<groupId>com.migesok</groupId>
+			<artifactId>jaxb-java-time-adapters</artifactId>
+			<version>1.1.3</version>
+		</dependency>
+	
+		<!-- IKATS Project internal dependencies -->
+
+		<dependency>
 			<groupId>fr.cs.ikats</groupId>
 			<artifactId>ikats-commons</artifactId>
 			<version>0.0.1-SNAPSHOT</version>
@@ -186,7 +315,7 @@
 					<groupId>org.slf4j</groupId>
 					<artifactId>slf4j-log4j12</artifactId>
 				</exclusion>
-			</exclusions>			
+			</exclusions>
 		</dependency>
 
 		<dependency>
@@ -198,7 +327,7 @@
 					<groupId>org.slf4j</groupId>
 					<artifactId>slf4j-log4j12</artifactId>
 				</exclusion>
-			</exclusions>			
+			</exclusions>
 		</dependency>
 
 		<!-- Mock frameworks for Unit Tests -->
@@ -209,26 +338,13 @@
 			<scope>test</scope>
 		</dependency>
 
-<!-- 		<dependency> -->
-<!-- 			<groupId>org.jmockit</groupId> -->
-<!-- 			<artifactId>jmockit</artifactId> -->
-<!-- 			<version>1.28</version> -->
-<!-- 			<scope>test</scope> -->
-<!-- 		</dependency> -->
-
-<!-- 		<dependency> -->
-<!-- 			<groupId>org.mockito</groupId> -->
-<!-- 			<artifactId>mockito-core</artifactId> -->
-<!-- 			<version>${mockito.version}</version> -->
-<!-- 			<scope>test</scope> -->
-<!-- 		</dependency> -->
-
 		<dependency>
 			<groupId>org.powermock</groupId>
 			<artifactId>powermock-module-junit4</artifactId>
 			<version>${powermock.version}</version>
 			<scope>test</scope>
 		</dependency>
+		
 		<dependency>
 			<groupId>org.powermock</groupId>
 			<artifactId>powermock-api-mockito2</artifactId>
@@ -257,5 +373,5 @@
 		</dependency>
 
 	</dependencies>
-	
+
 </project>

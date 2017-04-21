@@ -1,22 +1,18 @@
 package fr.cs.ikats.ingestion.process;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
 import javax.ejb.Stateless;
-import javax.naming.NamingException;
 
-import org.apache.commons.lang3.text.StrSubstitutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,8 +23,16 @@ import fr.cs.ikats.ingestion.model.ImportItem;
 import fr.cs.ikats.ingestion.model.ImportSession;
 import fr.cs.ikats.ingestion.model.ImportStatus;
 import fr.cs.ikats.metadata.MetaDataFacade;
+import fr.cs.ikats.metadata.model.FunctionalIdentifier;
+import fr.cs.ikats.metadata.model.MetaData;
+import fr.cs.ikats.metadata.model.MetaData.MetaType;
 import fr.cs.ikats.ts.dataset.DataSetFacade;
+import fr.cs.ikats.util.concurrent.ExecutorPoolManager;
 
+/**
+ * That class represent a thread which is the main part of the ingestion process ({@link IngestionProcess}) that basically submit all items/timeseries ({@link ImportItem}) of the dataset for ingestion and analyse/check their individual status.
+ * @author ftoral
+ */
 @Stateless
 public class ImportSessionIngester implements Runnable {
 
@@ -49,8 +53,6 @@ public class ImportSessionIngester implements Runnable {
 	
 	private MetaDataFacade metaDataFacade;
 
-	private String funcIdPattern;
-	
 	private Logger logger = LoggerFactory.getLogger(ImportSessionIngester.class);
 	
 	@SuppressWarnings("unused")
@@ -59,10 +61,10 @@ public class ImportSessionIngester implements Runnable {
 	}
 	
 	/**
+	 * Create a "session ingester" to import/ingest an {@link ImportSession} with link to an {@link IngestionProcess}.
 	 * 
-	 * @param ingestionProcess
-	 * @param session
-	 * @throws NamingException
+	 * @param ingestionProcess Provides services : the {@link DataSetFacade} to register the TS into the dataset and the {@link ExecutorPoolManager} instance to submit ingestion tasks. 
+	 * @param session Properties of the ingestion
 	 * @throws ClassNotFoundException 
 	 * @throws IllegalAccessException 
 	 * @throws InstantiationException 
@@ -70,13 +72,14 @@ public class ImportSessionIngester implements Runnable {
 	public ImportSessionIngester(IngestionProcess ingestionProcess, ImportSession session) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
 		this.process = ingestionProcess;
 		this.session = session;
-		this.funcIdPattern = session.getFuncIdPattern();
 
 		// Get the factory to import session items. The default test implementation is used if none found.
 		String taskFactoryFQN = session.getImporter();
 		if (taskFactoryFQN == null) {
-			taskFactoryFQN = (String) Configuration.getInstance().getProperty(IngestionConfig.IKATS_DEFAULT_IMPORTITEM_TASK_FACTORY);
+			taskFactoryFQN = Configuration.getInstance().getString(IngestionConfig.IKATS_DEFAULT_IMPORTITEM_TASK_FACTORY);
 		}
+		
+		// Review#147170 nettoyer code commenté ou retablir ...
 //		String taskFactoryName = taskFactoryFQN.substring(taskFactoryFQN.lastIndexOf('.') + 1);
 		
 //		Context ctx = new InitialContext();
@@ -93,18 +96,66 @@ public class ImportSessionIngester implements Runnable {
 		REGISTER_TSUID_DATASET_BATCH_SIZE = (int) Configuration.getInstance().getInt(IngestionConfig.IKATS_INGESTER_TSUIDTODATASET_BATCH);
 	}
 
-	@Override
+	/**
+	 * The main objective of that thread is to run a loop that submit an import task for each {@link ImportItem}.<br>
+	 * 
+	 * <p>
+	 * There are 2 nested loops : <br>
+	 *   <ol>
+	 *     <li>First loop runs until :
+	 *       <ul>
+	 *         <li>The session is marked as {@link ImportStatus#RUNNING}
+	 *         <li>There are yet items to ingest/import.<br>
+	 *           <ul>
+	 *             <li>The list of items to ingest/import is unstacked at each item imported; 
+	 *           </ul>
+	 *       </ul>
+	 *     <li>The second loop (nested) is in charge of trying to submit an ingestion task.<br>
+	 *     The task is created with an implementation of the factory {@link ImportItemTaskFactory}<br>
+	 *     The task is submitted to the pool which is an instance of {@link ExecutorPoolManager}, a fixed size pool (using a {@link ArrayBlockingQueue}.<br> 
+	 *     (Note: The queue if configured to run a maximum tasks at time, see {@link ExecutorPoolManager#workingQueueSize}, currently at 10.<br>
+	 *     So the code do the following:
+	 *     <ul>
+	 *       <li>Gets the last version of the list of {@link ImportSession#getItemsToImport() itemsToImport}
+	 *       <li>LOOP UNTIL there is one item in that list
+	 *       <ul>
+	 *         <li>IF the {@link ImportItem} is in {@link ImportStatus#CREATED CREATED} state
+	 *         <ul>
+	 *           <li>submit a task (that will change the state of the {@link ImportItem}) and return a {@link Future} of {@link ImportItem}<br>
+	 *           <li>IF the return is not null, add it to the {@link ImportSessionIngester#submitedTasks submitedTasks} list.<br>
+	 *           That list will be unstacked by the inner {@link ImportItemAnalyserThread}
+	 *           when an item is imported the analyser thread calls {@link ImportItem#setItemImported()} which will remove it from the list of {@link ImportSession#getItemsToImport() itemsToImport}
+	 *           <li>IF the return is null, assume that the task was not submitted (due to queue full)<br>
+	 *           reset the {@link ImportItem} state to {@link ImportStatus#CREATED CREATED}
+	 *         </ul>
+	 *       </ul>
+	 *     </ul>
+	 *   </ol> 
+	 * </p>
+	 */
 	public void run() {
 
 		// Launch import results analyser thread
+	    
+	    // Review#147170 c'est un runnable pas un thread ... renommer en importItemAnalyserRunnable ?
 		ImportItemAnalyserThread importItemAnalyserThread = new ImportItemAnalyserThread();
+		
+		// Review#147170 renommer en qqch de plus explicite que 'thread' : importItemAnalyserThread ? ...
 		Thread thread = new Thread(importItemAnalyserThread);
 		thread.start();
 
 		// Launch the import loop
 		// The state is controlled on the 
-		while (session.getStatus() == ImportStatus.RUNNING
-				&& submitedTasks.size() < session.getItemsToImport().size()) {
+		session.setStartDate(Instant.now());
+
+        // Review#147170 cf remarque entete de ImportItemAnalyserThread ... la machine a etats pourrait evoluer ...
+        // Review#147170 ... vers if ( CREATED) ... else if ( IMPORTED ) ... 
+        // Review#147170 expliciter le but de 'session.getStatus() == ImportStatus.RUNNING' en lien avec IngestionProcess
+		
+		// Review#147170 merge fait MBD: condition revue par FTL: while revu: parait plus clair
+		// Review#147170 commentaire "FIXME" a terminer:
+		// FIXME condition de fin de boucle à optimiser pour rendreC
+		while (session.getStatus() == ImportStatus.RUNNING && session.getItemsToImport().size() > 0) {
 
 			// at each loop get the last list of items to import
 			ListIterator<ImportItem> listIterator = session.getItemsToImport().listIterator();
@@ -114,6 +165,9 @@ public class ImportSessionIngester implements Runnable {
 
 				// for each one create and submit and import task
 				if (importItem.getStatus() == ImportStatus.CREATED) { 
+				    
+				    // Review#147170 expliquer plus le lien entre interface importItemTaskFactory 
+				    // Review#147170 et l'implem de createTask initialisée
 					Callable<ImportItem> task = importItemTaskFactory.createTask(importItem);
 					Future<ImportItem> submitedTask = process.getExecutorPool().submit(task);
 					
@@ -138,17 +192,31 @@ public class ImportSessionIngester implements Runnable {
 				Thread.sleep(1000);
 			} catch (InterruptedException ie) {
 				// TODO manage error ?
+			    // Review#147170 prise en compte TODO 
 				logger.warn("Interrupted while waiting", ie);
 			}
 		}
-
+		
 		// launch stop command to the result analysis thread and wait for it to
 		// finish
+		// Review#147170 conflit entre l ecriture de state par le thread et ce stop() sur le runnable ?
+		// Review#147170 on pourrait prendre une precaution de synchro ?
 		importItemAnalyserThread.stop();
 		try {
 			thread.join();
 		} catch (InterruptedException ie) {
 			logger.error("Interrupted while waiting importItemAnalyserThread to finish", ie);
+		}
+		finally {
+			session.setEndDate(Instant.now());
+
+			// set ingest session final state
+			if (importItemAnalyserThread.state == ImportItemAnalyserState.COMPLETED) {
+				session.setStatus(ImportStatus.COMPLETED);
+			} else {
+				session.addError("The submitted tasks are not fully analysed, the analyser thread finished with state: " + importItemAnalyserThread.state.name());
+				session.setStatus(ImportStatus.ERROR);
+			}
 		}
 
 	}
@@ -168,11 +236,22 @@ public class ImportSessionIngester implements Runnable {
 		/** End state */
 		COMPLETED
 	}
-
+    // Review#147170 peut etre trop complexe ? ... 
+	// Review#147170 pourquoi ne pas   - insérer un etat ImportStatus.RUNNING_REGISTER entre IMPORTED et COMPLETED:
+	// Review#147170                   - ... et completer une seule machinea etat: celle du ImportSessionIngester:run()
+	// Review#147170                   - ... et completer le ImportTaskFactory: createTask retourne ImportTask ou bien RegisterTask - un Callable par etat ...
 	/**
-	 * This inner class is designed to be run at each loop of the
-	 * {@link ImportSessionIngester.run()}<br>
-	 * The goal is to unstack the stack of {@link Future<ImportResult>}
+	 * This inner class is designed to be run at start of the {@link ImportSessionIngester#run()} with goal to unstack the stack of {@link ImportItem} by running a loop on the {@link ImportSessionIngester#submitedTasks submitedTasks}<br>
+	 * The main concern is on the status {@link ImportStatus#IMPORTED IMPORTED} of the {@link ImportItem} to :
+	 * <ul>
+	 *   <li>Call {@link ImportItem#setItemImported() setItemImported()} that removes that item from the list of items to ingest in the session
+	 *   <li>Register the FunctionalIdentifier with {@link ImportItemAnalyserThread#registerFunctionalIdent(ImportItem) registerFunctionalIdent()}
+	 *   <li>Register the other metadata/tags with {@link ImportItemAnalyserThread#registerMetadata(ImportItem) registerMetadata()}
+	 *   <li>Register the TSUID in the Dataset, using a trick to defer that registration in a batch.<br>
+	 *   See {@link ImportItemAnalyserThread#perpareToRegisterInDataset(ImportItem) perpareToRegisterInDataset} and {@link ImportItemAnalyserThread#registerTsuidsInDataset() registerTsuidsInDataset}
+	 * </ul> 
+	 * 
+	 * <p><u>Note:</u> That pattern of deferred database update for the TSUID in Dataset could be generalized for all the database information, i.e. FunctionalIdentifier and Metadata.
 	 */
 	public class ImportItemAnalyserThread implements Runnable {
 
@@ -193,6 +272,13 @@ public class ImportSessionIngester implements Runnable {
 		@Override
 		public void run() {
 
+			if (state == ImportItemAnalyserState.SHUTINGDOWN) {
+				// case when stop() call was raised before Thread.start() has launched the current run() method
+				logger.debug("Stopped before any run");
+				state = ImportItemAnalyserState.COMPLETED;
+				return;
+			}
+			
 			// Start the loop in running state.
 			state = ImportItemAnalyserState.RUNNING;
 			
@@ -203,10 +289,8 @@ public class ImportSessionIngester implements Runnable {
 					
 					// unstack loop
 					Iterator<Future<ImportItem>> iterator = submitedTasks.iterator();
-					int index = 0;
 					while (iterator.hasNext()) {
 						Future<ImportItem> future = (Future<ImportItem>) iterator.next();
-						index++;
 						
 						if (!future.isDone()) {
 							// skip rest of the unstack loop to iterate next.
@@ -227,7 +311,6 @@ public class ImportSessionIngester implements Runnable {
 								case RUNNING:
 									// The import task is running
 								case COMPLETED:
-								case STOPPED:
 									break;
 								case IMPORTED:
 									// move the item as imported in the session only if import is completed
@@ -236,6 +319,7 @@ public class ImportSessionIngester implements Runnable {
 									registerMetadata(importItem);
 									perpareToRegisterInDataset(importItem);
 									break;
+								case ERROR:
 								case CANCELLED:
 								default:
 									// move the item in the errors stack
@@ -243,18 +327,15 @@ public class ImportSessionIngester implements Runnable {
 									break;
 							}
 							
-							// finally removes the current ImportResult out of the stack.
-							iterator.remove();
-							
-							// register a batch of tsuid in the dataset
-							if (index % REGISTER_TSUID_DATASET_BATCH_SIZE == 0 || iterator.hasNext() == false) {
-								registerTsuidsInDataset();
-							}
-							
 						} catch (InterruptedException | ExecutionException e) {
 							// FIXME
 							logger.debug("Message: {}, cause: {}, {}", e.getMessage(), e.getCause(), e);
 						}
+						finally {
+							// finally removes the current ImportResult out of the stack.
+							iterator.remove();
+						}
+						
 					}
 				}
 				
@@ -270,7 +351,7 @@ public class ImportSessionIngester implements Runnable {
 						if (submitedTasks.size() == 0) {
 							// let an ultimate chance for tasks to finish
 							state = ImportItemAnalyserState.LASTPASS;
-							logger.debug("Last pass in the loop"); 
+							logger.trace("Last pass in the loop"); 
 						}
 					case RUNNING:
 					default: // continue to loop
@@ -283,20 +364,22 @@ public class ImportSessionIngester implements Runnable {
 						}
 				}
 			}
-			logger.info("Finished running submitedTasks.size={}", submitedTasks.size()); 
+			logger.info("Finished analyzing sent tasks for session {} on dataset {}", session.getId(), session.getDataset()); 
+			logger.debug("submitedTasks.size={}", submitedTasks.size()); 
 		}
 		
 		/**
 		 * Shutdown the thread by ending the loop with a last run.
 		 */
 		public void stop() {
-			// used in the run() loop
+			// used in the run() loop of ImportSessionIngester
 			state = ImportItemAnalyserState.SHUTINGDOWN;
 		}
 		
 		/**
-		 * Record the item for future linking in the dataset by {@link ImportItemAnalyserThread#registerTsuidsInDataset() registerTsuidsInDataset}
-		 * @param importItem
+		 * Record the item for future linking in the dataset by {@link ImportItemAnalyserThread#registerTsuidsInDataset() registerTsuidsInDataset}<br>
+		 * 
+		 * @param importItem the item for which the TSUID is to be registered in the dataset in the next batch record.
 		 */
 		private void perpareToRegisterInDataset(ImportItem importItem) {
 			if (tsuidToRegister == null) {
@@ -305,10 +388,17 @@ public class ImportSessionIngester implements Runnable {
 			
 			// add the tsuid to the batch
 			tsuidToRegister.add(importItem.getTsuid());
+			
+			// register the batch of items in the dataset if size is raised 
+			// or if there is no more items to import
+			if (tsuidToRegister.size() % REGISTER_TSUID_DATASET_BATCH_SIZE == 0 
+					|| session.getItemsToImport().size() == 0) {
+				registerTsuidsInDataset();
+			}
 		}
 		
 		/**
-		 * Register the current list of IKATS TS into the dataset 
+		 * Register the current list of TSUIDs collected with {@link ImportItemAnalyserThread#perpareToRegisterInDataset(ImportItem)} into the dataset.<br>
 		 */
 		private void registerTsuidsInDataset() {
 			
@@ -327,7 +417,7 @@ public class ImportSessionIngester implements Runnable {
 					logger.debug(message, e);
 				}
 				
-				session.setStatus(ImportStatus.STOPPED);
+				session.setStatus(ImportStatus.ERROR);
 			}
 			finally {
 				// clear the list for next batch of tsuids.
@@ -337,47 +427,19 @@ public class ImportSessionIngester implements Runnable {
 		
 		/**
 		 * Register the Functional Identifier of the Ikats TS.
-		 * @param importItem
+		 * 
+		 * @param importItem the item for which the {@link ImportItem#getFuncId() FunctionalIdentifier} have to be registered.
 		 */
 		private void registerFunctionalIdent(ImportItem importItem) {
 			
-			// format the functional identifier from pattern and tags
-			Map<String, String> valuesMap = new HashMap<String, String>();
-			valuesMap.putAll(importItem.getTags());
-			valuesMap.put("metric", importItem.getMetric());
-			StrSubstitutor sub = new StrSubstitutor(valuesMap);
-			String funcId = sub.replace(funcIdPattern);
-			 
-			try {
-				importItem.setFuncId(funcId);
-				metaDataFacade.persistFunctionalIdentifier(importItem.getTsuid(), funcId);
-			} catch (IkatsDaoException e) {
-				String message = "Can't persist functional identifier '" +  importItem.getFuncId() + "' for tsuid " + importItem.getTsuid() + " ; item=" + importItem;
-				importItem.addError(message);
-				importItem.addError(e.getMessage());
-				if (! logger.isDebugEnabled()) {
-					logger.error(message);
-					logger.error(e.getMessage());
-				} else {
-					logger.debug(message, e);
-				}
-				
-				importItem.setStatus(ImportStatus.STOPPED);
-			}
-		}
-		
-		/**
-		 * Register a metadata for each tag of the time serie.
-		 * @param importItem
-		 */
-		private void registerMetadata(ImportItem importItem) {
-
-			Set<Entry<String, String>> tagsKV = importItem.getTags().entrySet();
-			for (Entry<String, String> tag : tagsKV) {
+			FunctionalIdentifier registeredFID = metaDataFacade.getFunctionalIdentifierByTsuid(importItem.getTsuid());
+			if (registeredFID == null) {
+				// We do not have an existing FID in the database. Create it.
 				try {
-					metaDataFacade.persistMetaData(importItem.getTsuid(), tag.getKey(), tag.getValue());
+					metaDataFacade.persistFunctionalIdentifier(importItem.getTsuid(), importItem.getFuncId());
 				} catch (IkatsDaoException e) {
-					String message = "Can't persist metadata (k/v) '" + tag.getKey() + "/" + tag.getValue() + "' for tsuid " + importItem.getTsuid() + " ; item=" + importItem;
+					// An error occured during persist of the functional identifier
+					String message = "Can't persist functional identifier '" +  importItem.getFuncId() + "' for tsuid " + importItem.getTsuid() + " ; item=" + importItem;
 					importItem.addError(message);
 					importItem.addError(e.getMessage());
 					if (! logger.isDebugEnabled()) {
@@ -386,10 +448,91 @@ public class ImportSessionIngester implements Runnable {
 					} else {
 						logger.debug(message, e);
 					}
-
 					
-					importItem.setStatus(ImportStatus.STOPPED);
+					session.setItemInError(importItem);
+					importItem.setStatus(ImportStatus.ERROR);
 				}
+			} 
+			else { // We already have a functional identifier for that TSUID... 
+				
+				if (! registeredFID.getFuncId().equals(importItem.getFuncId())) {
+					// and it is not the same...
+					logger.warn("The TSDUID {} is already registered with Functional Identifier '{}' but the current calculated is '{}'. Keeping the old one.",
+							importItem.getTsuid(), registeredFID.getFuncId(), importItem.getFuncId());
+					importItem.setFuncId(registeredFID.getFuncId());
+				}
+				// else : nothing to do the exisitng FID is the same.
+			}
+		}
+		
+		/**
+		 * Register a metadata for each tag of the item.
+		 * @param importItem the item for which the {@link ImportItem#getTags()} have to be registered as metadata
+		 */
+		private void registerMetadata(ImportItem importItem) {
+			
+			ArrayList<MetaData> metadataList = new ArrayList<MetaData>();
+			
+			// set the metric as metadata
+			MetaData mdMetric = new MetaData();
+			mdMetric.setName("metric");
+			mdMetric.setDType(MetaType.string);
+			mdMetric.setValue(importItem.getMetric());
+			mdMetric.setTsuid(importItem.getTsuid());
+			metadataList.add(mdMetric);
+			
+			// set the start and end dates as metadata
+			MetaData mdStartDate = new MetaData();
+			mdStartDate.setName("ikats_start_date");
+			mdStartDate.setDType(MetaType.date);
+			mdStartDate.setValue(Long.toString(importItem.getStartDate().toEpochMilli()));
+			mdStartDate.setTsuid(importItem.getTsuid());
+			metadataList.add(mdStartDate);
+			MetaData mdEndDate = new MetaData();
+			mdEndDate.setName("ikats_end_date");
+			mdEndDate.setDType(MetaType.date);
+			mdEndDate.setValue(Long.toString(importItem.getEndDate().toEpochMilli()));
+			mdEndDate.setTsuid(importItem.getTsuid());
+			metadataList.add(mdEndDate);
+
+			// set the number of points
+			MetaData mdNbPoints = new MetaData();
+			mdNbPoints.setName("qual_nb_points");
+			mdNbPoints.setDType(MetaType.number);
+			mdNbPoints.setValue(Long.toString(importItem.getNumberOfSuccess()));
+			mdNbPoints.setTsuid(importItem.getTsuid());
+			metadataList.add(mdNbPoints);
+					
+			
+			// Set the dataset tags as metadata
+			importItem.getTags().entrySet().forEach( tag -> {
+				MetaData mdTag = new MetaData();
+				mdTag.setName(tag.getKey());
+				mdTag.setDType(MetaType.string);
+				mdTag.setValue(tag.getValue());
+				mdTag.setTsuid(importItem.getTsuid());
+				metadataList.add(mdTag);
+			} );
+			
+			try {
+				// Save all the metadata with update option.
+				metaDataFacade.persist(metadataList, true);
+			}
+			catch (IkatsDaoException e) {
+				// An error occured during persist or update
+				String message = "Can't persist metadata for tsuid " + importItem.getTsuid() + " ; item=" + importItem.getFuncId();
+				importItem.addError(message);
+				importItem.addError(e.getMessage());
+				if (!logger.isDebugEnabled()) {
+					logger.error(message);
+					logger.error(e.getMessage());
+				} else {
+					logger.debug(message, e);
+				}
+				
+				// mark the item not fully "ingested"
+				session.setItemInError(importItem);
+				importItem.setStatus(ImportStatus.ERROR);
 			}
 		}
 

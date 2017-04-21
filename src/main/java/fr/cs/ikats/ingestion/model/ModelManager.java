@@ -22,6 +22,7 @@ import javax.xml.bind.annotation.XmlRootElement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+// Review#147170 javadoc classe et methodes publiques
 @Singleton
 public class ModelManager {
 
@@ -33,6 +34,8 @@ public class ModelManager {
     {
     	if (instance == null) {
 	    	try {
+	    	    // Review#147170 explication technique utile: pourquoi passer par JNDI ? ... 
+	    	    // Review#147170 le constructeur vide appelé pour @Singleton c'est bien cela ? 
 	    		instance = (ModelManager) InitialContext.doLookup("java:global/ikats-ingestion/ModelManager");
 	    	} catch (NamingException e) {
 	    		Logger logger = LoggerFactory.getLogger(ModelManager.class);
@@ -88,6 +91,9 @@ public class ModelManager {
 		marshall();
 	}
 	
+	// Review#147170 corriger nom: marshal en anglais ou mettre un nom plus parlant saveModelXml
+	// Review#147170 le verbe anglais est marshal (voir dessous) perso je trouve pas cela tres clair
+	// Review#147170 mais je comprendrais si tu passes
 	private void marshall() {
 		
 		try {
@@ -102,13 +108,17 @@ public class ModelManager {
 			jaxbMarshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, true);
 
 			jaxbMarshaller.marshal(model, file);
+			// Review#147170 soit supprimer soit rediriger vers logger.debug ?
 			jaxbMarshaller.marshal(model, System.out);
 
 		} catch (JAXBException e) {
+		    // Review#147170 logger.error(e)
 			e.printStackTrace();
 		}
 	}
-
+	// Review#147170 corriger nom: unmarshal en anglais ou mettre un nom plus parlant loadModelXml
+    // Review#147170 commentaire pour la methode: load a partir du XML des sessions
+	// Review#147170 gestion erreurs: on masque des erreurs ... volontaire ? completer les logs ?
 	private List<ImportSession> unmarshall() {
 
 		try {
@@ -117,6 +127,7 @@ public class ModelManager {
 
 			Unmarshaller jaxbUnmarshaller = jaxbContext.createUnmarshaller();
 			model = (IngestionModel) jaxbUnmarshaller.unmarshal(file);
+			// Review#147170 soit supprimer soit logger.debug ?
 			System.out.println(model);
 		} catch (UnmarshalException ume) {
 			

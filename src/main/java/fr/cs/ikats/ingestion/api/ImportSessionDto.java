@@ -4,30 +4,41 @@ import org.apache.commons.lang3.text.StrSubstitutor;
 
 import fr.cs.ikats.ingestion.IngestionConfig;
 
+// Review#147170 - javadoc de classe 
+// Review#147170 - AC: remommer avec nom plus parlant -confusion des roles avec ImportSession-
+// Review#147170   Il me semble qu'ici ce sont les definitions de l'import par utilisateur ... plus que l'état d'avancement
 public class ImportSessionDto {
 
 	/** Optional for client requests : only used with API calls for info on session or to change session state */
 	public int id;
 	
+	// Review#147170 javadoc dataset et description
 	public String dataset;
 	
 	public String description;
 	
-	/** Absolute root path of the dataset on the import server where files are located */
+	/** 
+	 * Root path of the dataset on the import server where files are located.<br>
+	 * <ul>
+	 *   <li>Could be absolute, in that case, represent the path on the server.</li>
+	 *   <li>If relative, the configuration property defined in {@link IngestionConfig#IKATS_INGESTER_ROOT_PATH} will be used as root path.</li>
+	 * </ul>  
+	 */
 	public String rootPath;
 	
+	// Review#147170 </li> rajoutés
 	/**
 	 * Pattern rules for defining tags and metric of dataset:<br>
 	 * <ul>
 	 * <li>The path is described with a regex</li>
-	 * <li>The root of the absolute path is {@link ImportSessionDto#rootPath}, and is not included in the pattern
+	 * <li>The root of the absolute path is {@link ImportSessionDto#rootPath}, and is not included in the pattern</li>
 	 * <li>The metric and tags should be matched into regex named groups</li>
 	 * <li>The regex <b>should have one metric</b> group defined with: <code>(?&lt;metric&gt;.*)</code></li>
 	 * <li>Each tag is defined with a regex group defined with: <code>(?&lt;tagname&gt;.*)</code></li>
 	 * </ul>
 	 * Examples :
 	 * <ol>
-	 * <li>For EDF : <code>"\/DAR\/(?&lt;equipement&gt;\w*)\/(?&lt;metric&gt;.*?)(?:_(?&lt;validity&gt;bad|good))?\.csv"</code>
+	 * <li>For EDF : <code>"\/DAR\/(?&lt;equipement&gt;\w*)\/(?&lt;metric&gt;.*?)(?:_(?&lt;validity&gt;bad|good))?\.csv"</code></li>
 	 * <li>For Airbus : <code>"\/DAR\/(?&lt;AircraftIdentifier&gt;\w*)\/(?&lt;metric&gt;.*?)/raw_(?&lt;FlightIdentifier&gt;.*)\.csv"</code>
 	 * </li>
 	 * </ol>
@@ -72,6 +83,7 @@ public class ImportSessionDto {
 	 */
 	public String serializer;
 
+	// Review#147170 javadoc
 	public ImportSessionDto() {
 		super();
 	}

@@ -14,6 +14,7 @@ import java.util.regex.Pattern;
 
 import javax.ws.rs.core.Response;
 
+import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.helpers.FormattingTuple;
@@ -26,7 +27,10 @@ import fr.cs.ikats.datamanager.client.opentsdb.DataBaseClientManager;
 import fr.cs.ikats.datamanager.client.opentsdb.IkatsWebClientException;
 import fr.cs.ikats.datamanager.client.opentsdb.ImportResult;
 import fr.cs.ikats.datamanager.client.opentsdb.ResponseParser;
+import fr.cs.ikats.ingestion.api.ImportSessionDto;
+import fr.cs.ikats.ingestion.exception.IngestionError;
 import fr.cs.ikats.ingestion.exception.IngestionException;
+import fr.cs.ikats.ingestion.exception.NoPointsToImportException;
 import fr.cs.ikats.ingestion.model.ImportItem;
 import fr.cs.ikats.ingestion.model.ImportStatus;
 import fr.cs.ikats.ingestion.process.AbstractImportTaskFactory;
@@ -34,7 +38,8 @@ import fr.cs.ikats.util.configuration.ConfigProperties;
 import fr.cs.ikats.util.configuration.IkatsConfiguration;
 
 /**
- * Factory which creates an OpenTSDB import task 
+ * Factory which creates an OpenTSDB import task.<br>
+ * Embedded the class task {@link ImportTask} that processes one TS.
  * 
  * @author ftoral
  */
@@ -42,26 +47,33 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 
 	private final static IkatsConfiguration<ConfigProps> config = new IkatsConfiguration<ConfigProps>(ConfigProps.class);
 	
-    private final static Pattern tsuidPattern = Pattern.compile(".*tsuids\":\\[\"(\\w*)\"\\].*");
+    /** Pattern for the tsuid extracting in {@link ImportTask#getTSUID(String, Long, Map)} */
+	private final static Pattern tsuidPattern = Pattern.compile(".*tsuids\":\\[\"(\\w*)\"\\].*");
 
-    /** The OpenTSDB client manager instance */
+    /** The OpenTSDB client manager instance (from TemporalDataManagerWebApp) */
     private final static DataBaseClientManager urlBuilder = new DataBaseClientManager();
 
     private final int IMPORT_NB_POINTS_BY_BATCH;
     
 	private Logger logger = LoggerFactory.getLogger(OpenTsdbImportTaskFactory.class);
 
+	/**
+	 * Default constructor based upon configured IMPORT_CHUNK_SIZE
+	 */
 	public OpenTsdbImportTaskFactory() {
 		IMPORT_NB_POINTS_BY_BATCH = (int) config.getInt(ConfigProps.IMPORT_CHUNK_SIZE);
 	}
-		
+
+	/**
+	 * {@inheritDoc}
+	 */
 	public Callable<ImportItem> createTask(ImportItem item) {
 		ImportTask task = new ImportTask(item);
 		return task;
 	}
 	
 	/**
-	 * 
+	 * The ingestion task that pushes a TS cutted in chunks into OpenTSDB
 	 * @author ftoral
 	 */
 	class ImportTask implements Callable<ImportItem> {
@@ -76,20 +88,25 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 		@Override
 		public ImportItem call() {
 
+			IImportSerializer jsonizer = null;
+			
 			try {
-				IImportSerializer jsonizer = (IImportSerializer) getSerializer(this.importItem);
+				jsonizer = (IImportSerializer) getSerializer(this.importItem);
 				
 				// PREREQ- Initialize the reader/jsonizer
 				initJsonizer(jsonizer, importItem);
 
 				// Set import running for that item.
 				importItem.setStatus(ImportStatus.RUNNING);
+				importItem.setImportStartDate(Instant.now());
 				
 				// 1- Send the TS
 				sendItemInChunks(jsonizer);
 				
 				// 2- Get the resulting TSUID
 		        String tsuid = getTSUID(importItem.getMetric(), jsonizer.getDates()[0], importItem.getTags());
+				importItem.setImportEndDate(Instant.now());
+
 		        importItem.setTsuid(tsuid);
 		        if (tsuid == null || tsuid.isEmpty()) {
 		        	throw new IngestionException("Could not get OpenTSDB tsuid for item: " + importItem);
@@ -100,13 +117,35 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 		        // 3- Provide ImportItem with imported key values
 				importItem.setStartDate(Instant.ofEpochMilli(jsonizer.getDates()[0]));
 				importItem.setEndDate(Instant.ofEpochMilli(jsonizer.getDates()[1]));
-
-			// } catch (IngestionException | IOException | DataManagerException | IkatsWebClientException e) {
-			} catch (Exception e) {
-				FormattingTuple arrayFormat = MessageFormatter.format("Error while processing item for file {} ",importItem.getFile().toString());
+			}
+			catch (IngestionException | IngestionError e) {
+				
+				logger.error(e.getMessage(), e.getCause());
+				importItem.addError(e.getMessage());
+				
+				// In the case of a managed exception, we put the item in error mode in order to allow a future ingestion
+				// except in the case of there is no points to import  
+				if (e instanceof NoPointsToImportException) {
+					importItem.setStatus(ImportStatus.CANCELLED);
+				} else {
+					importItem.setStatus(ImportStatus.ERROR);
+				}
+			}
+			// } catch (IOException | DataManagerException | IkatsWebClientException e) {
+			catch (Exception | Error e) {
+				
+				// We need to catch all exceptions and errors because the thread status could not be managed otherwise.
+				FormattingTuple arrayFormat = MessageFormatter.format("Error while processing item {} for file {} ", importItem.getFuncId(), importItem.getFile().toString());
 				logger.error(arrayFormat.getMessage(), e);
 				importItem.addError(e.getMessage());
 				importItem.setStatus(ImportStatus.CANCELLED);
+			} 
+			finally {
+				
+				// in any case if open, close the "jsonizer" which consequently should close the file 
+				if (jsonizer != null) {	
+					jsonizer.close();
+				}
 			}
 
 			// the import item was provided with all its new properties
@@ -135,25 +174,74 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 		}
 
 		/**
+		 * <p>Method which is responsible to send the Timeserie to OpenTSDB.</p>
+		 * 
+		 * <p>Uses the {@link IImportSerializer} declared in {@link ImportSessionDto#serializer} to parse the lines of the file.
+		 * That serializer is initialized by {@link #initJsonizer(IImportSerializer, ImportItem)}.</p>
+		 * 
+		 * <p>The serializer prepares the JSON data to be sent to OpenTSDB based on the 
+		 * {@link OpenTsdbImportTaskFactory#IMPORT_NB_POINTS_BY_BATCH configured number of points}</p>
+		 * 
+		 * <p>A synchronous request is sent to OpenTSDB, i.e. no response is expected until OpenTSDB has processed the request, 
+		 * using 'sync=true' and 'sync_timeout' in th query URL (see <a href="http://opentsdb.net/docs/build/html/api_http/put.html#requests">
+		 * OpenTSDB HTTP API PUT Request documentation</a>). Then the response is read and parsed to retrieve information like number of points imported,
+		 * number of failed, errors, ... All is stored into the {@link ImportItem}.</p>
+		 * 
+		 * <p>Note that the request and responses are described in <a href="http://opentsdb.net/docs/build/html/api_http/put.html">OpenTSDB HTTP API PUT documentation</a>.
+		 * The whole is managed in the IKATS classes : {@link RequestSender} and {@link ResponseParser}</p>
+		 * 
+		 * <p>
+		 * Expected HTTP:
+		 * <ul>
+		 *   <li>PUT Request: http://opentsdbhost:4242/api//put?details=true&sync=true&sync_timeout=60000</li>
+		 *   <li>JSON data: <pre>
+		 * [
+		 *     {
+		 *         "metric": "WS1",
+		 *         "timestamp": 1346846400,
+		 *         "value": 18,
+		 *         "tags": {
+		 *            "AircraftIdentifier": "T019"
+		 *            "FlightIdentifier": "122"
+		 *         }
+		 *     },
+		 *     {
+		 *         "metric": "WS1",
+		 *         "timestamp": 1346846400,
+		 *         "value": 9,
+		 *         "tags": {
+		 *            "AircraftIdentifier": "T019"
+		 *            "FlightIdentifier": "122"
+		 *         }
+		 *     }
+		 * ]
+		 *   </pre>
+		 *   </li>
+		 * </ul>
+		 * </p>
+		 * 
 		 * @param jsonizer
 		 * @throws IOException
 		 * @throws DataManagerException
+		 * @throws IngestionError 
+		 * @throws NoPointsToImportException 
 		 */
-		private void sendItemInChunks(IImportSerializer jsonizer) throws IOException, DataManagerException {
+		private void sendItemInChunks(IImportSerializer jsonizer) throws DataManagerException, IngestionError, NoPointsToImportException {
 			// Create an aggregated ImportResult for the entire item
 			int chunkIndex = 0;
+			int emptyChuncks = 0;
 
 			// loop to submit import request for each TS chunk
 			while (jsonizer.hasNext()) {
 				chunkIndex ++;
-				String json = jsonizer.next(IMPORT_NB_POINTS_BY_BATCH);
 				try {
+					String json = jsonizer.next(IMPORT_NB_POINTS_BY_BATCH);
 					if (json != null && !json.isEmpty()) {
-						String url = (String) config.getProperty(ConfigProps.OPENTSDB_IMPORT_URL);
-						logger.debug("Sending request to {}" + url);
+						String url = (String) config.getString(ConfigProps.OPENTSDB_IMPORT_URL);
+						logger.debug("Sending chunk #{} for item {}", chunkIndex, importItem.getFuncId());
 						Response response = RequestSender.sendPUTJsonRequest(url, json);
-						ImportResult result = ResponseParser.parseImportResponse(response, response.getStatus());
-						logger.debug("Import task finished with result: " + result);
+						ImportResult result = ResponseParser.parseImportResponse(response);
+						logger.debug("Import finished for chunk #{} of item {}", chunkIndex, importItem.getFuncId());
 						
 						// Aggregate the result of this chunk into the item result
 						importItem.addNumberOfSuccess(result.getNumberOfSuccess());
@@ -163,14 +251,23 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 							importItem.addError(details);
 						}
 					} else {
-						logger.error("JSON data is empty");
-						importItem.addError("[chunk #" + chunkIndex + "] JSON data is empty for chunk #" + chunkIndex);
+						FormattingTuple arrayFormat = MessageFormatter.format("Item {} | chunk #{} - No data to import", importItem.getFuncId(), chunkIndex);
+						logger.error(arrayFormat.getMessage());
+						importItem.addError(arrayFormat.getMessage());
+						emptyChuncks ++;
 					}
-				} catch (Throwable e) {
-					// FIXME FTO : Remove that catch Throwable !!! (heritage of old TDM import)
-					logger.error("Exception occured while sending json to db", e);
-					importItem.addError("[chunk #" + chunkIndex + "] Exception occured while sending chunk #" + chunkIndex + " to db: " + e.getMessage());
+				} catch (IkatsWebClientException | ParseException e) {
+					FormattingTuple arrayFormat = MessageFormatter.format("Item {} | Exception occured with TSDB exchange", importItem.getFuncId());
+					throw new IngestionError(arrayFormat.getMessage(), e);
+				} catch (IOException ioe) {
+					FormattingTuple arrayFormat = MessageFormatter.format("Item {} | I/O Exception readig file {}", importItem.getFuncId(), importItem.getFile().getPath());
+					throw new IngestionError(arrayFormat.getMessage(), ioe);
 				}
+			}
+			
+			if (chunkIndex == 1 && emptyChuncks == 1) {
+				// Special case where the CSV File is empty, no need to go further in the import process. Raise an exception to manage it in the call()
+				throw new NoPointsToImportException(importItem);
 			}
 		}
 		
@@ -179,34 +276,35 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 	     * 
 	     * @param metric
 	     *            the metric name
-	     * @param date
-	     *            the end date of the timeseries
-	     * @param hashMap
+	     * @param startDate
+	     *            the start date of the timeserie
+	     * @param tags
 	     *            the tags
 	     * @return the TSUID
 	     * @throws IkatsWebClientException
 	     *             if request cannot be generated or sent
 	     */
-	    public String getTSUID(String metric, Long date, Map<String, String> hashMap) throws IkatsWebClientException {
+	    public String getTSUID(String metric, Long startDate, Map<String, String> tags) throws IkatsWebClientException {
 	    	
 	        // Build the tag map
 	        StringBuilder tagSb = new StringBuilder("{");
-	        hashMap.forEach((k, v) -> tagSb.append(k).append("=").append(v).append(","));
+	        tags.forEach((k, v) -> tagSb.append(k).append("=").append(v).append(","));
 	        // remove the trailing "," char
 	        tagSb.replace(tagSb.lastIndexOf(","), tagSb.length(), "}");
 	    	
 			String tsuid = null;
 			String apiUrl = (String) config.getProperty(ConfigProps.OPENTSDB_API_URL); 
 			String url = apiUrl
-			        + urlBuilder.generateMetricQueryUrl(metric, tagSb.toString(), null, null, null, Long.toString(date), null, "show_tsuids");
+			        + urlBuilder.generateMetricQueryUrl(metric, tagSb.toString(), "sum", null, null, Long.toString(startDate), Long.toString(startDate+1), "show_tsuids");
 			Response webResponse = RequestSender.sendGETRequest(url, null);
 			String str = webResponse.readEntity(String.class);
-			logger.debug("GET TSUID response : " + str);
+			logger.trace("GET TSUID response : " + str);
 			
 			Matcher matcher = tsuidPattern.matcher(str);
 			if (matcher.matches()) {
 			    tsuid = matcher.group(1);
 			}
+			logger.debug("TSUID extracted: <{}>", tsuid);
 			
 			return tsuid;
 	    }

@@ -10,6 +10,7 @@ import javax.xml.bind.Unmarshaller;
 import javax.xml.bind.annotation.XmlAccessType;
 import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlTransient;
+import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringExclude;
@@ -17,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.migesok.jaxb.adapter.javatime.InstantXmlAdapter;
 
 import fr.cs.ikats.datamanager.client.opentsdb.ImportResult;
 import fr.cs.ikats.ingestion.process.ImportAnalyser;
@@ -35,7 +37,9 @@ public class ImportItem {
 	private String tsuid;
 	private String funcId;
 	private HashMap<String, String> tags;
+	@XmlJavaTypeAdapter(value = InstantXmlAdapter.class)
 	private Instant startDate;
+	@XmlJavaTypeAdapter(value = InstantXmlAdapter.class)
 	private Instant endDate;
 	private ImportStatus status;
 	@ToStringExclude
@@ -43,7 +47,9 @@ public class ImportItem {
 	@JsonIgnore
 	private ImportSession importSession;
 	private List<String> errors;
+	@XmlJavaTypeAdapter(value = InstantXmlAdapter.class)
 	private Instant importStartDate;
+	@XmlJavaTypeAdapter(value = InstantXmlAdapter.class)
 	private Instant importEndDate;
     private long numberOfSuccess = 0;
     private long numberOfFailed = 0;
@@ -173,7 +179,7 @@ public class ImportItem {
 			errors = new ArrayList<String>();
 		}
 		
-		errors.add(error);
+		errors.add(Instant.now() + " - " + error);
 	}
 
 	public Instant getImportStartDate() {

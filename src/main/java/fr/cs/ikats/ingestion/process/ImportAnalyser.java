@@ -12,11 +12,16 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
+import javax.ejb.EJB;
+
+import org.apache.commons.lang3.text.StrSubstitutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.helpers.FormattingTuple;
 import org.slf4j.helpers.MessageFormatter;
 
+import fr.cs.ikats.ingestion.Configuration;
+import fr.cs.ikats.ingestion.IngestionConfig;
 import fr.cs.ikats.ingestion.api.ImportSessionDto;
 import fr.cs.ikats.ingestion.exception.IngestionRuntimeException;
 import fr.cs.ikats.ingestion.model.ImportItem;
@@ -24,18 +29,25 @@ import fr.cs.ikats.ingestion.model.ImportSession;
 import fr.cs.ikats.ingestion.model.ImportStatus;
 import fr.cs.ikats.util.RegExUtils;
 
+// Review#147170 javadoc classe, constructeur, methodes publiques
 public class ImportAnalyser implements Runnable {
 	
-	private static final String METRIC_REGEX_GROUPNAME = "metric";
-
+	@EJB
+	private Configuration config = (Configuration) Configuration.getInstance();
+	
 	private Logger logger = LoggerFactory.getLogger(ImportAnalyser.class);
 
 	private ImportSession session;
 
+	// Review#147170 commentaire
 	private Pattern pathPatternCompiled;
 
+	// Review#147170 commentaire
 	private Map<String, Integer> namedGroups;
+
+	private String funcIdPattern;
 	
+	// Review#147170 
 	public ImportAnalyser(ImportSession session) {
 		this.session = session;
 	}
@@ -70,6 +82,9 @@ public class ImportAnalyser implements Runnable {
 			return;
 		}
 		
+		// Stores the funcIdPattern for future use
+		funcIdPattern = session.getFuncIdPattern();
+		
 		// Finally walk over the directory tree to find the files matching our pathPattern regex and provide them as ImportItems with their tags. 
 		walkOverDataset();
 		
@@ -80,19 +95,28 @@ public class ImportAnalyser implements Runnable {
 
 	private void walkOverDataset() {
 		
-		Path root = FileSystems.getDefault().getPath(session.getRootPath());
-		if (!root.toFile().exists() || !root.toFile().isDirectory()) {
-			FormattingTuple arrayFormat = MessageFormatter.format("Root path not accessible {}", session);
-			logger.error(arrayFormat.getMessage());
-			session.addError(arrayFormat.getMessage()); 
-			session.setStatus(ImportStatus.CANCELLED);
-			throw new IngestionRuntimeException("The root path " + session.getRootPath() + " doesn't exist for dataset " + session.getDataset());
+		Path datasetRoot = FileSystems.getDefault().getPath(session.getRootPath());
+		if (!datasetRoot.isAbsolute()) {
+			// If the path provided is not absolute add the configured root path from general configuatio
+			datasetRoot = FileSystems.getDefault().getPath(config.getString(IngestionConfig.IKATS_INGESTER_ROOT_PATH), session.getRootPath());
 		}
+		
+		if (!datasetRoot.toFile().exists() || !datasetRoot.toFile().isDirectory()) {
+			FormattingTuple arrayFormat = MessageFormatter.format("Path '{}' not accessible for dataset '{}'", datasetRoot.toString(), session.getDataset());
+			String message = arrayFormat.getMessage();
+			logger.error(message);
+			session.addError(message); 
+			session.setStatus(ImportStatus.CANCELLED);
+			throw new IngestionRuntimeException(message);
+		}
+		
+		// Reset the absolute path in the session
+		session.rootPath = datasetRoot.toString();
 		
 		// walk the tree directories to prepare the CSV files
 		// Code base from http://rosettacode.org/wiki/Walk_a_directory/Recursively#Java
 		try {
-			Files.walk(root)
+			Files.walk(datasetRoot)
 				 .filter( path -> path.toFile().isFile() )
 				 .forEach( path -> createImportSessionItem(path.toFile()) );
 			
@@ -121,6 +145,9 @@ public class ImportAnalyser implements Runnable {
 		// extract metric and tags
 		extractMetricAndTags(item, matcher);
 		
+		// Provide the calculated funcId to the item
+		createFuncId(item);
+		
 		session.getItemsToImport().add(item);
 		logger.debug("File {} added to import session of dataset {}", importFile.getName(), session.getDataset());
 	}
@@ -128,7 +155,8 @@ public class ImportAnalyser implements Runnable {
 	/**
 	 * Based on the {@link ImportSessionDto.pathPattern} definition, extract and store metric and tags and metric
 	 * @param item the item on which extract metric and tags.
-	 * @param matcher the  
+	 * @param matcher the configured engine that will parse item data for the tags and the metric
+	 * Review#147170 a finir 
 	 */
 	private void extractMetricAndTags(ImportItem item, Matcher matcher) {
 
@@ -137,12 +165,27 @@ public class ImportAnalyser implements Runnable {
 		// for each regex named group as a tag name, put the KV pair into the list of tags
 		for (String tagName : namedGroups.keySet()) {
 			// do not add the 'metric'
-			if (!tagName.equalsIgnoreCase(METRIC_REGEX_GROUPNAME)) {
+			if (!tagName.equalsIgnoreCase(config.getString(IngestionConfig.METRIC_REGEX_GROUPNAME))) {
 				tagsMap.put(tagName, matcher.group(tagName));
 			}
 		}
 		
 		item.setTags(tagsMap);
-		item.setMetric(matcher.group(METRIC_REGEX_GROUPNAME));
+		item.setMetric(matcher.group(config.getString(IngestionConfig.METRIC_REGEX_GROUPNAME)));
 	}
+	
+	/**
+	 * Format the functional identifier from pattern information of the session and already discovered tags.
+	 * @param item the item for which the func id should be calculated
+	 */
+	private void createFuncId(ImportItem item) {
+		// format the functional identifier from pattern and tags
+		Map<String, String> valuesMap = new HashMap<String, String>();
+		valuesMap.putAll(item.getTags());
+		valuesMap.put("metric", item.getMetric());
+		StrSubstitutor sub = new StrSubstitutor(valuesMap);
+		String funcId = sub.replace(funcIdPattern);
+		item.setFuncId(funcId);
+	}
+
 }

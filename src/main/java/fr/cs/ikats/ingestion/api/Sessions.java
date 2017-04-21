@@ -6,12 +6,14 @@ import javax.ejb.EJB;
 import javax.ejb.Stateless;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
+import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.GenericEntity;
 import javax.ws.rs.core.MediaType;
@@ -33,6 +35,8 @@ import fr.cs.ikats.ingestion.model.ImportSession;
 @Stateless
 public class Sessions {
 	
+	private static final Object PUT_ACTION_RESTART_SESSION = "restart";
+
 	@EJB IngestionService app;
 	
 	private Logger logger = LoggerFactory.getLogger(Sessions.class);
@@ -53,6 +57,7 @@ public class Sessions {
         return Response.ok(sessionsWrapped).build();
     }
     
+    // Review#147170 javadoc manquante
     @GET
     @Path("{id}")
     @Produces(MediaType.APPLICATION_JSON)
@@ -67,6 +72,7 @@ public class Sessions {
     	}
     }
     
+    // Review#147170 javadoc manquante
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
     public Response createSession(ImportSessionDto session, @Context UriInfo uriInfo) {
@@ -75,37 +81,86 @@ public class Sessions {
     		logger.error("IngestionService EJB not injected");
     		return Response.status(Status.SERVICE_UNAVAILABLE).build();
     	}
-
-    	// Add the session
-    	int id = app.addSession(session);
-
-    	// Return the location header
-    	UriBuilder uri = uriInfo.getAbsolutePathBuilder();
-    	uri.path(Integer.toString(id));
     	
-    	return Response.created(uri.build()).build();
+    	// information for the location header
+    	UriBuilder uri = uriInfo.getAbsolutePathBuilder();
+    	Status status = null;
+    	
+    	// 
+    	ImportSession existingSession = app.getExistingSession(session);
+    	if (existingSession != null) {
+    		// Return the location header with location of the existing session and the HTTP status 409
+        	uri.path(Integer.toString(existingSession.getId()));
+        	status = Status.CONFLICT;
+		}
+    	else {
+    		
+    		// Else add the session and gets its id
+    		int id = app.addSession(session);
+    		
+    		// prepare the new id in the location header and the response with status 201
+    		uri.path(Integer.toString(id));
+        	status = Status.CREATED;
+    	}
+    	
+    	return Response.status(status).location(uri.build()).build();
     }
     
+    // Review#147170 javadoc manquante pour expliquer ce service
+    // Review#147170 ... du coup est ce utile d'avoir ce service non implémenté ... code mort ?
     @PUT
     @Path("{action}")
     public Response updateSessions(@PathParam(value = "action") String action) {
-    	// TODO implement !
+        // TODO implement !
 		return Response.status(Status.NOT_IMPLEMENTED).build();
     }
     
+    /**
+     * <p>Allow to do an action on the provided session.</p>
+     * <p>The only allowed action for now is "restart" : see {@link IngestionService#restartSession(int, boolean)}</p>  
+     * @param id The id of the session
+     * @param action The action to do on that session
+     * @param force pass that boolean to the action
+     * @param uriInfo context information to allow return location header in the response  
+     * @return the HTTP response
+     */
     @PUT
     @Path("{id}/{action}")
-    public Response updateSession(@PathParam(value = "id") int id, @PathParam(value = "action") String action) {
-    	// TODO implement !
-		return Response.status(Status.NOT_IMPLEMENTED).build();
+    public Response updateSession(@PathParam(value = "id") int id, 
+    		@PathParam(value = "action") String action, 
+    		@QueryParam(value = "force") @DefaultValue("false") boolean force, 
+    		@Context UriInfo uriInfo) {
+		
+    	// Check if the session exists
+    	if (app.getSession(id) == null) {
+			return Response.status(Status.NOT_FOUND).build();
+		}
+    	
+    	// run only if action is PUT_ACTION_RESTART_SESSION
+    	if (action.equals(PUT_ACTION_RESTART_SESSION)) {
+    		
+    		app.restartSession(id, force);
+    		
+    		// information for the location header
+        	UriBuilder uri = uriInfo.getAbsolutePathBuilder();
+        	
+        	// Response with HTTP code 200 OK
+    		return Response.ok().contentLocation(uri.path(Integer.toString(id)).build()).build();
+    	}
+    	
+    	return Response.notAcceptable(null).build();
     }
     
+    // Review#147170 javadoc manquante
+    // Review#147170 ... du coup est ce utile d'avoir ce service non implémenté ... code mort ?
     @DELETE
     public Response removeAll() {
     	// TODO implement !
 		return Response.status(Status.NOT_IMPLEMENTED).build();
     }
     
+    // Review#147170 javadoc manquante
+    // Review#147170 ... du coup est ce utile d'avoir ce service non implémenté ... code mort ?
     @DELETE
     @Path("{id}")
     public Response removeSession(@PathParam(value = "id") int id) {
