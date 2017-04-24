@@ -128,7 +128,7 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 			catch (IngestionException | IngestionError e) {
 				
 				logger.error(e.getMessage(), e.getCause());
-				importItem.addError(e.getMessage());
+				importItem.addError(Instant.now() + " - Exception: " + e.getMessage() + ((e.getCause() == null) ? "" : " - Cause: " + e.getCause().toString())) ;
 				
 				// In the case of a managed exception, we put the item in error mode in order to allow a future ingestion
 				// except in the case of there is no points to import  
@@ -142,10 +142,14 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 			catch (Exception | Error e) {
 				
 				// We need to catch all exceptions and errors because the thread status could not be managed otherwise.
-				FormattingTuple arrayFormat = MessageFormatter.format("Error while processing item {} for file {} ", importItem.getFuncId(), importItem.getFile().toString());
-				logger.error(arrayFormat.getMessage(), e);
-				importItem.addError(e.getMessage());
+				logger.error("Error while processing item {} for file {}", importItem.getFuncId(), importItem.getFile().toString());
+				
+				FormattingTuple arrayFormat = MessageFormatter.format("Exception: {} - Cause: {}", e.toString(), (e.getCause() == null) ? "null" : e.getCause().toString());
+				importItem.addError(Instant.now() + " - " + arrayFormat.getMessage());
+				
+				// This is a non managed error: Cancel the item
 				importItem.setStatus(ImportStatus.CANCELLED);
+				
 			} 
 			finally {
 				
