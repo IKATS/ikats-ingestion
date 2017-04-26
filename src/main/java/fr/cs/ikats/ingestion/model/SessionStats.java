@@ -1,5 +1,6 @@
 package fr.cs.ikats.ingestion.model;
 
+import java.text.MessageFormat;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Stack;
@@ -37,6 +38,11 @@ import fr.cs.ikats.ingestion.api.ImportSessionDto;
 		"sessionStatus",
 		"numberOfItemsInitial",
 		"numberOfItemsToImport",
+		"numberOfItemsImported",
+		"rateOfImportedItems",
+		"numberOfPointsSent",
+		"numberOfPointsSuccess",
+		"numberOfPointsFailed",
 		"dateSessionAnalysisStarted",
 		"dateSessionAnalysisCompleted",
 		"dateSessionAnalysisDuration",
@@ -58,8 +64,25 @@ public class SessionStats {
 	
 	private int numberOfItemsInitial;
 	
+	@SuppressWarnings("unused")
 	private int numberOfItemsToImport;
 	
+	@SuppressWarnings("unused")
+	private int numberOfItemsImported;
+
+	@SuppressWarnings("unused")
+	private String rateOfImportedItems;
+	
+	@SuppressWarnings("unused")
+	private long numberOfPointsSent = 0L;
+	
+	@SuppressWarnings("unused")
+	private long numberOfPointsSuccess = 0L;
+	
+	@SuppressWarnings("unused")
+	private long numberOfPointsFailed = 0L;
+	
+	@SuppressWarnings("unused")
 	private ImportSessionDto sessionDescriptor;
 
 	@XmlJavaTypeAdapter(value = DurationXmlAdapter.class)
@@ -73,6 +96,16 @@ public class SessionStats {
 	@JsonProperty(value = "runs")
 	@XmlElement(name = "run")
 	private Stack<Run> runs = new Stack<Run>();
+	
+	@ToStringExclude
+	@XmlTransient
+	@JsonIgnore
+	private Run previousRun;
+	
+	@ToStringExclude
+	@XmlTransient
+	@JsonIgnore
+	private Run currentRun;
 	
     @ToStringExclude
     @XmlTransient
@@ -107,11 +140,17 @@ public class SessionStats {
 
 	/**
 	 * Updates the date of computed stats
+	 * @param toDate if null, set {@link SessionStats#dateStatsUpdated} to {@link Instant#now()}
 	 */
-	private void updateDateStatsUpdated() {
-		dateStatsUpdated = Instant.now();
+	private void updateDateStatsUpdated(Instant toDate) {
+		if (toDate == null) {
+			dateStatsUpdated = Instant.now();
+		}
+		else {
+			dateStatsUpdated = toDate;
+		}
 	}
-
+	
 	/**
 	 * Directly return the status from the session
 	 * @return the current session status
@@ -133,7 +172,7 @@ public class SessionStats {
 			dateSessionAnalysisDuration = Duration.between(dateSessionAnalysisStarted, dateSessionAnalysisCompleted);
 		}
 		
-		updateDateStatsUpdated();
+		updateDateStatsUpdated(null);
 	}
 
 	/**
@@ -141,18 +180,33 @@ public class SessionStats {
 	 * @param start
 	 */
 	public void timestampIngestion(boolean start) {
+		Instant now = Instant.now();
 		if(start) {
 			// Create a new ingestion run in a FIFO
-			runs.add(new Run());
+			if (currentRun == null || currentRun.dateIngestionCompleted != null) {
+				// This is a first run or the previous run is completed
+				// point previous and current
+				previousRun = runs.size() == 0 ? new Run() : runs.peek();
+				currentRun = new Run();
+				// add to top of the pile
+				runs.add(currentRun);
+				
+			} else {
+				logger.warn("Request to timestamp a new ingestion run (session {}) while the previous runs has no completed date. Updating the dateIngestionStarted property only.", sessionLink.getId());
+			}
 			
-			// set date to the "peek" of the FIFO 
-			runs.peek().dateIngestionStarted = Instant.now();
-		} else {
-			runs.peek().dateIngestionCompleted = Instant.now();
-			runs.peek().dateIngestionDuration = Duration.between(runs.peek().dateIngestionStarted, runs.peek().dateIngestionCompleted);
+			// set start date to the "peek" of the FIFO 
+			currentRun.dateIngestionStarted = now;
+		} 
+		else {
+			// set the ingestion completed date 
+			currentRun.dateIngestionCompleted = now;
 		}
 		
-		updateDateStatsUpdated();
+		// set the duration from start of that run
+		currentRun.dateIngestionDuration = Duration.between(currentRun.dateIngestionStarted, now);
+		
+		updateDateStatsUpdated(now);
 	}
 	
 	/**
@@ -164,43 +218,64 @@ public class SessionStats {
 	 */
 	public synchronized void addPoints(long pointsSent, long numberOfSuccess, long numberOfFailed) {
 
-		runs.peek().numberOfPointsSent += pointsSent;
-		Instant toDate = (runs.peek().dateIngestionCompleted == null) ? Instant.now() : runs.peek().dateIngestionCompleted;
-		Duration ingestionDuration = Duration.between(runs.peek().dateIngestionStarted, toDate);
+		// update number of points sent / success / failed for the session and for the current run
+		this.numberOfPointsSent += pointsSent;
+		currentRun.numberOfPointsSent += pointsSent;
+		this.numberOfPointsSuccess += numberOfSuccess;
+		currentRun.numberOfPointsSuccess += numberOfSuccess;
+		this.numberOfPointsFailed += numberOfFailed;
+		currentRun.numberOfPointsFailed += numberOfFailed;
+
+		// Compute the duration (now if ingestion not completed)
+		Instant toDate = (currentRun.dateIngestionCompleted == null) ? Instant.now() : currentRun.dateIngestionCompleted;
+		Duration ingestionDuration = Duration.between(currentRun.dateIngestionStarted, toDate);
 		
-		runs.peek().ratePointsPerSecond = (float) runs.peek().numberOfPointsSent / (float) ingestionDuration.toMillis() * 1000F ;
-		runs.peek().numberOfPointsSuccess += numberOfSuccess;
-		runs.peek().numberOfPointsFailed += numberOfFailed;
-		
-		updateDateStatsUpdated();
+		// update average / min / max rate of Points/second
+		currentRun.avgPointsPerSecond = (float) currentRun.numberOfPointsSent / (float) ingestionDuration.toMillis() * 1000F ;
+		if (currentRun.avgPointsPerSecond > currentRun.maxPointsPerSecond) 
+			currentRun.maxPointsPerSecond = currentRun.avgPointsPerSecond;
+		if (currentRun.avgPointsPerSecond < currentRun.minPointsPerSecond || currentRun.minPointsPerSecond == 0) 
+			currentRun.minPointsPerSecond = currentRun.avgPointsPerSecond;
+	
+		updateDateStatsUpdated(toDate);
 	}
 	
-	public ImportSessionDto getSessionDescriptor() {
-		return sessionDescriptor;
-	}
-
-	public int getNumberOfItemsInitial() {
-		return numberOfItemsInitial;
-	}
-
+	/**
+	 * Set the initial number of items to import (computed after session analysis)
+	 * @param numberOfItemsInitial
+	 */
 	public void setNumberOfItemsInitial(int numberOfItemsInitial) {
 		this.numberOfItemsInitial = numberOfItemsInitial;
 	}
-
-	public int getNumberOfItemsToImport() {
-		return numberOfItemsToImport;
-	}
-
+	
+	/**
+	 * Set the current number of items to import
+	 * @param numberOfItemsToImport
+	 */
 	public void setNumberOfItemsToImport(int numberOfItemsToImport) {
 		this.numberOfItemsToImport = numberOfItemsToImport;
 	}
 
+	/**
+	 * Set the number of points imported, both at session level (total) and at the current run level 
+	 * @param numberOfItemsImported
+	 */
 	public void setNumberOfItemsImported(int numberOfItemsImported) {
-		this.runs.peek().numberOfItemsImported = numberOfItemsImported;
+		// set only the points imported in the current run
+		currentRun.numberOfItemsImported = numberOfItemsImported - previousRun.numberOfItemsImported;
+		
+		// provide the total information for the session
+		this.numberOfItemsImported = numberOfItemsImported;
+		float rateOfImportedItems =  (float) numberOfItemsImported / (float) this.numberOfItemsInitial;
+		this.rateOfImportedItems = MessageFormat.format("{0,number,#.##%}", rateOfImportedItems);
 	}
 
+	/**
+	 * Set the number of items in error for the current run
+	 * @param numberOfItemsInError
+	 */
 	public void setNumberOfItemsInError(int numberOfItemsInError) {
-		runs.peek().numberOfItemsInError = numberOfItemsInError;
+		currentRun.numberOfItemsInError = numberOfItemsInError;
 	}
 
 	public Duration getDateSessionAnalysisDuration() {
@@ -208,11 +283,11 @@ public class SessionStats {
 	}
 	
 	public Instant getDateIngestionStarted() {
-		return runs.peek().dateIngestionStarted;
+		return currentRun.dateIngestionStarted;
 	}
 
 	public Instant getDateIngestionCompleted() {
-		return runs.peek().dateIngestionCompleted;
+		return currentRun.dateIngestionCompleted;
 	}
 	
 	/**
@@ -229,7 +304,9 @@ public class SessionStats {
 			"numberOfPointsSent",
 			"numberOfPointsSuccess",
 			"numberOfPointsFailed",
-			"ratePointsPerSecond"})
+			"avgPointsPerSecond",
+			"minPointsPerSecond",
+			"maxPointsPerSecond"})
 	public static class Run {
 		
 		@XmlJavaTypeAdapter(value = InstantXmlAdapter.class)
@@ -241,17 +318,22 @@ public class SessionStats {
 		@XmlJavaTypeAdapter(value = DurationXmlAdapter.class)
 		Duration dateIngestionDuration;
 		
-		int numberOfItemsImported;
+		int numberOfItemsImported = 0;
 		
-		int numberOfItemsInError;
+		int numberOfItemsInError = 0;
 		
-		int numberOfPointsSent;
+		long numberOfPointsSent = 0L;
 		
-		long numberOfPointsSuccess;
+		long numberOfPointsSuccess = 0L;
 		
-		long numberOfPointsFailed;
+		long numberOfPointsFailed = 0L;
 		
-		float ratePointsPerSecond;
+		float avgPointsPerSecond = 0F;
+		
+		float maxPointsPerSecond = 0F;
+
+		float minPointsPerSecond = 0F;
+	
 	}
 
 }
