@@ -17,7 +17,7 @@
 	<logger name="org.hibernate" level="WARN" />
 	<logger name="org.hibernate.SQL" level="OFF" />
 	
-  	<logger name="fr.cs.ikats" level="TRACE" />
+  	<logger name="fr.cs.ikats" level="INFO" />
 
     <root level="INFO">
     	<appender-ref ref="STDOUT" />

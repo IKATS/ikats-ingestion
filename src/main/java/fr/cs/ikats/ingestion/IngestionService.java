@@ -94,7 +94,7 @@ public class IngestionService {
 		
 		ImportSession newSession = new ImportSession(session);
 		this.sessions.add(newSession);
-		logger.info("ImportSession added: (id={}), {}", newSession.getId(), newSession.toString());
+		logger.info("ImportSession added: (id={}), for dataset {}", newSession.getId(), newSession.getDataset());
 		
 		// Start asynchronous import analysis
 		startIngestionProcess(newSession);

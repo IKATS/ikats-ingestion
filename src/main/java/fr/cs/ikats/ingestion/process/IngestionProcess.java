@@ -118,7 +118,7 @@ public class IngestionProcess implements Runnable {
 							session.setStatus(ImportStatus.CANCELLED);
 						}
 					} catch (IngestionException ie) {
-						String message = "Can't persist dataset '" + session.getDataset() + "' for import session " + session.getId() + " ; session=" + session;
+						String message = "Can't persist dataset '" + session.getDataset() + "' for import session " + session.getId();
 						session.addError(message);
 						session.addError(ie.getMessage());
 						logger.error(message, ie);

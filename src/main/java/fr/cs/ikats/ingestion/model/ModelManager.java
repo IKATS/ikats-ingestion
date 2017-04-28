@@ -104,12 +104,11 @@ public class ModelManager {
 			JAXBContext jaxbContext = JAXBContext.newInstance(classes);
 			Marshaller jaxbMarshaller = jaxbContext.createMarshaller();
 
-			// output pretty printed
+			// output pretty printed then save.
 			jaxbMarshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, true);
-
 			jaxbMarshaller.marshal(model, file);
-			// Review#147170 soit supprimer soit rediriger vers logger.debug ?
-			jaxbMarshaller.marshal(model, System.out);
+			
+			logger.info("Saved session file: {}", file.getAbsolutePath());
 
 		} catch (JAXBException e) {
 		    // Review#147170 logger.error(e)
@@ -127,8 +126,9 @@ public class ModelManager {
 
 			Unmarshaller jaxbUnmarshaller = jaxbContext.createUnmarshaller();
 			model = (IngestionModel) jaxbUnmarshaller.unmarshal(file);
-			// Review#147170 soit supprimer soit logger.debug ?
-			System.out.println(model);
+
+			logger.info("Session loaded");
+			
 		} catch (UnmarshalException ume) {
 			
 		} catch (JAXBException je) {
