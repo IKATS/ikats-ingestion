@@ -176,7 +176,7 @@ public class IngestionService {
 					session.setItemToImport(itemInError);
 					itemInError.setStatus(ImportStatus.CREATED);
 				} catch (Exception e) {
-					logger.error("Error while restting item {} for InError for restarting ingestion: {}", itemInError.getFuncId(), e.getMessage());
+					logger.error("Error while reseting item {} from InError for restarting ingestion: {}", itemInError.getFuncId(), e.toString());
 				}
 			}
 		});

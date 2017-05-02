@@ -79,6 +79,8 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 	 */
 	class ImportTask implements Callable<ImportItem> {
 		
+		private static final int MAX_GETTSUID_TRIES = 6;
+		private static final long WAIT_BEFORE_GETTSUID_TRIES = 5000;
 		private ImportItem importItem;
 
 		public ImportTask(ImportItem importItem) {
@@ -103,20 +105,36 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 				
 				// 1- Send the TS
 				sendItemInChunks(jsonizer);
-				
-				// 2- Get the resulting TSUID
-		        String tsuid = getTSUID(importItem.getMetric(), jsonizer.getDates()[0], importItem.getTags());
 				importItem.setImportEndDate(Instant.now());
 				
-				// 3- Provide ImportItem with imported key values
+				// 2- Provide ImportItem with imported key values
 				importItem.setStartDate(Instant.ofEpochMilli(jsonizer.getDates()[0]));
 				importItem.setEndDate(Instant.ofEpochMilli(jsonizer.getDates()[1]));
 
-		        importItem.setTsuid(tsuid);
+				// 3- Get the resulting TSUID
+				String tsuid = getTSUID(importItem.getMetric(), jsonizer.getDates()[0], importItem.getTags());
 		        if (tsuid == null || tsuid.isEmpty()) {
-		        	throw new IngestionException("Could not get OpenTSDB tsuid for item: " + importItem);
+		        	
+		        	// Run into a strategy of retries to get the TSUID
+		        	int tries = 0;
+		        	do {
+		        		logger.trace("getTSUID retry #{} for item {}", tries + 1, importItem.getFuncId());
+		        		Thread.sleep(WAIT_BEFORE_GETTSUID_TRIES);
+		        		tsuid = getTSUID(importItem.getMetric(), jsonizer.getDates()[0], importItem.getTags());
+		        		tries ++;
+		        		
+		        	} while ((tsuid == null || tsuid.isEmpty()) && tries <= MAX_GETTSUID_TRIES);
+
+		        	// Test whether or not we finally got the TSUID, if not throw an exception.
+		        	if (tsuid == null || tsuid.isEmpty()) {
+		        		logger.trace("TSUID not retrieved after {} tries, for item {}", tries - 1, importItem.getFuncId());
+		        		throw new IngestionException("Could not get OpenTSDB tsuid for item: " + importItem.getFuncId());
+		        	} else {
+		        		logger.debug("TSUID retrieved after {} tries, for item {}", tries - 1, importItem.getFuncId());
+		        	}
 		        } 
 		        
+		        importItem.setTsuid(tsuid);
 		        importItem.setStatus(ImportStatus.IMPORTED);
 				
 				// Update stats
@@ -128,7 +146,7 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 			catch (IngestionException | IngestionError e) {
 				
 				logger.error(e.getMessage(), e.getCause());
-				importItem.addError(Instant.now() + " - Exception: " + e.getMessage() + ((e.getCause() == null) ? "" : " - Cause: " + e.getCause().toString())) ;
+				importItem.addError("Exception: " + e.getMessage() + ((e.getCause() == null) ? "" : " - Cause: " + e.getCause().toString())) ;
 				
 				// In the case of a managed exception, we put the item in error mode in order to allow a future ingestion
 				// except in the case of there is no points to import  
@@ -145,7 +163,7 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 				logger.error("Error while processing item {} for file {}", importItem.getFuncId(), importItem.getFile().toString());
 				
 				FormattingTuple arrayFormat = MessageFormatter.format("Exception: {} - Cause: {}", e.toString(), (e.getCause() == null) ? "null" : e.getCause().toString());
-				importItem.addError(Instant.now() + " - " + arrayFormat.getMessage());
+				importItem.addError(arrayFormat.getMessage());
 				
 				// This is a non managed error: Cancel the item
 				importItem.setStatus(ImportStatus.CANCELLED);

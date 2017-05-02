@@ -1,5 +1,6 @@
 package fr.cs.ikats.ingestion.process;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -47,8 +48,7 @@ public class ImportSessionIngester implements Runnable {
 	private ImportItemTaskFactory importItemTaskFactory;
 
 	/** Synchronized list of ({@link Future}) tasks */
-	private List<Future<ImportItem>> submitedTasks = Collections
-			.synchronizedList(new ArrayList<Future<ImportItem>>());
+	private List<Future<ImportItem>> submitedTasks = Collections.synchronizedList(new ArrayList<Future<ImportItem>>());
 	
 	private MetaDataFacade metaDataFacade;
 
@@ -185,6 +185,7 @@ public class ImportSessionIngester implements Runnable {
 						break;
 					}
 				}
+
 			}
 			
 			try {
@@ -203,8 +204,10 @@ public class ImportSessionIngester implements Runnable {
 		// Review#147170 on pourrait prendre une precaution de synchro ?
 		importItemAnalyserThread.stop();
 		try {
+			// Wait for analyser to finish
 			thread.join();
-		} catch (InterruptedException ie) {
+		} 
+		catch (InterruptedException ie) {
 			logger.error("Interrupted while waiting importItemAnalyserThread to finish", ie);
 		}
 		finally {
@@ -258,6 +261,7 @@ public class ImportSessionIngester implements Runnable {
 
 		/** State of the thread */
 		private ImportItemAnalyserState state = ImportItemAnalyserState.INIT;
+		
 		private List<String> tsuidToRegister = new ArrayList<String>();
 
 		/**
@@ -302,31 +306,7 @@ public class ImportSessionIngester implements Runnable {
 							// Future<>.get() : should be immediate as we have only done() tasks
 							ImportItem importItem = future.get();
 							
-							// Check the import item status and move item from toImport list 
-							// to one of the completed or erroneous list
-							switch (importItem.getStatus()) {
-								case CREATED:
-									// A task has to be created via ImportItemTaskFactory 
-								case ANALYSED:
-									// The task has been created and will be run in a moment
-								case RUNNING:
-									// The import task is running
-								case COMPLETED:
-									break;
-								case IMPORTED:
-									// move the item as imported in the session only if import is completed
-									importItem.setItemImported();
-									registerFunctionalIdent(importItem);
-									registerMetadata(importItem);
-									perpareToRegisterInDataset(importItem);
-									break;
-								case ERROR:
-								case CANCELLED:
-								default:
-									// move the item in the errors stack
-									importItem.setItemInError();
-									break;
-							}
+							processImportItem(importItem);
 							
 						} catch (InterruptedException | ExecutionException e) {
 							// FIXME
@@ -354,6 +334,28 @@ public class ImportSessionIngester implements Runnable {
 							state = ImportItemAnalyserState.LASTPASS;
 							logger.trace("Last pass in the loop"); 
 						}
+						// Last check on the list of items to import
+						if (session.getItemsToImport().size() > 0) {
+							
+							logger.warn("There are {} item(s) in the itemsToImport list. Processing now.", session.getItemsToImport().size());
+							
+							// Process items that where not processed by the analyser thread
+							session.getItemsToImport().forEach(Item -> processImportItem(Item));
+							
+							if (session.getItemsToImport().size() > 0) {
+								logger.warn("There are yet {} item(s) in the itemsToImport list after normal processing.", session.getItemsToImport().size());
+								
+								session.getItemsToImport().forEach(item -> {
+									// set the rest of items in the error list
+									ImportStatus oldStatus = item.getStatus();
+									item.setStatus(ImportStatus.ERROR);
+									item.setItemInError();
+									item.addError(Instant.now() + " - tem not processed. Old state: " + oldStatus);
+
+									logger.error("Item {} not processed. Set in error list. Old state: {}", item.getFuncId(), oldStatus);
+								});
+							}
+						}
 					case RUNNING:
 					default: // continue to loop
 						try {
@@ -368,6 +370,7 @@ public class ImportSessionIngester implements Runnable {
 			logger.info("Finished analyzing sent tasks for session {} on dataset {}", session.getId(), session.getDataset()); 
 			logger.debug("submitedTasks.size={}", submitedTasks.size()); 
 		}
+
 		
 		/**
 		 * Shutdown the thread by ending the loop with a last run.
@@ -375,6 +378,37 @@ public class ImportSessionIngester implements Runnable {
 		public void stop() {
 			// used in the run() loop of ImportSessionIngester
 			state = ImportItemAnalyserState.SHUTINGDOWN;
+		}
+
+		/**
+		 * @param importItem
+		 */
+		private void processImportItem(ImportItem importItem) {
+			// Check the import item status and move item from toImport list 
+			// to one of the completed or erroneous list
+			switch (importItem.getStatus()) {
+			case CREATED:
+				// A task has to be created via ImportItemTaskFactory 
+			case ANALYSED:
+				// The task has been created and will be run in a moment
+			case RUNNING:
+				// The import task is running
+			case COMPLETED:
+				break;
+			case IMPORTED:
+				// move the item as imported in the session only if import is completed
+				importItem.setItemImported();
+				registerFunctionalIdent(importItem);
+				registerMetadata(importItem);
+				perpareToRegisterInDataset(importItem);
+				break;
+			case ERROR:
+			case CANCELLED:
+			default:
+				// move the item in the errors stack
+				importItem.setItemInError();
+				break;
+			}
 		}
 		
 		/**
@@ -495,7 +529,7 @@ public class ImportSessionIngester implements Runnable {
 			mdEndDate.setValue(Long.toString(importItem.getEndDate().toEpochMilli()));
 			mdEndDate.setTsuid(importItem.getTsuid());
 			metadataList.add(mdEndDate);
-
+			
 			// set the number of points
 			MetaData mdNbPoints = new MetaData();
 			mdNbPoints.setName("qual_nb_points");
@@ -503,7 +537,7 @@ public class ImportSessionIngester implements Runnable {
 			mdNbPoints.setValue(Long.toString(importItem.getNumberOfSuccess()));
 			mdNbPoints.setTsuid(importItem.getTsuid());
 			metadataList.add(mdNbPoints);
-					
+			
 			
 			// Set the dataset tags as metadata
 			importItem.getTags().entrySet().forEach( tag -> {
@@ -536,7 +570,7 @@ public class ImportSessionIngester implements Runnable {
 				importItem.setStatus(ImportStatus.ERROR);
 			}
 		}
+		
+	} // End class ImportItemAnalyserThread
 
-	}
-
-}
+}  // End ImportSessionIngester

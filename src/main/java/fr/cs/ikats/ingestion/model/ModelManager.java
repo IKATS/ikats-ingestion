@@ -130,12 +130,12 @@ public class ModelManager {
 			logger.info("Session loaded");
 			
 		} catch (UnmarshalException ume) {
-			
+			logger.error("Error reading session file: {}", ume.toString());
 		} catch (JAXBException je) {
 			if (je instanceof UnmarshalException && je.getLinkedException() instanceof FileNotFoundException) {
-				
+				logger.warn("Session file not found");
 			} else {
-				logger.error(je.getLocalizedMessage());
+				logger.error("Error reading session file: {}", je.toString());
 			}
 		} 
 		
