@@ -267,10 +267,10 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 					String json = jsonizer.next(IMPORT_NB_POINTS_BY_BATCH);
 					if (json != null && !json.isEmpty()) {
 						String url = (String) config.getString(ConfigProps.OPENTSDB_IMPORT_URL);
-						logger.debug("Sending chunk #{} for item {}", chunkIndex, importItem.getFuncId());
+						logger.trace("Sending chunk #{} for item {}", chunkIndex, importItem.getFuncId());
 						Response response = RequestSender.sendPUTJsonRequest(url, json);
 						ImportResult result = ResponseParser.parseImportResponse(response);
-						logger.debug("Import finished for chunk #{} of item {}", chunkIndex, importItem.getFuncId());
+						logger.trace("Import finished for chunk #{} of item {}", chunkIndex, importItem.getFuncId());
 						
 						// Aggregate the result of this chunk into the item result
 						importItem.addNumberOfSuccess(result.getNumberOfSuccess());
@@ -333,7 +333,7 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 			if (matcher.matches()) {
 			    tsuid = matcher.group(1);
 			}
-			logger.debug("TSUID extracted: <{}>", tsuid);
+			logger.trace("TSUID extracted: <{}>", tsuid);
 			
 			return tsuid;
 	    }

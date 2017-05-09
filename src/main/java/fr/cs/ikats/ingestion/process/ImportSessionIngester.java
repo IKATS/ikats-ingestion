@@ -38,8 +38,6 @@ import fr.cs.ikats.util.concurrent.ExecutorPoolManager;
 @Stateless
 public class ImportSessionIngester implements Runnable {
 
-	private static int REGISTER_TSUID_DATASET_BATCH_SIZE = 0;
-	
 	/** The session on which to work */
 	private ImportSession session;
 
@@ -96,7 +94,6 @@ public class ImportSessionIngester implements Runnable {
 		// Instance the facade for metadata creation 
 		metaDataFacade = new MetaDataFacade();
 
-		REGISTER_TSUID_DATASET_BATCH_SIZE = (int) Configuration.getInstance().getInt(IngestionConfig.IKATS_INGESTER_TSUIDTODATASET_BATCH);
 	}
 
 	/**
@@ -223,9 +220,6 @@ public class ImportSessionIngester implements Runnable {
 			session.getStats().timestampIngestion(false);
 			session.setEndDate(session.getStats().getDateIngestionCompleted());
 			
-			// force last tsuids to be registered in the dataset if needed
-			registerTsuidsInDataset();
-
 			// set ingest session final state
 			if (importItemAnalyserThread.state == ImportItemAnalyserState.COMPLETED) {
 				session.setStatus(ImportStatus.COMPLETED);
@@ -266,7 +260,7 @@ public class ImportSessionIngester implements Runnable {
 				// move the item as imported in the session only if import is completed
 				registerFunctionalIdent(importItem);
 				registerMetadata(importItem);
-				perpareToRegisterInDataset(importItem);
+				registerFuncIdInDataset(importItem);
 				break;
 			case COMPLETED:
 				// Do nothing, the item is fully completed
@@ -278,9 +272,6 @@ public class ImportSessionIngester implements Runnable {
 				break;
 			}
 		}
-		
-		// force tsuids to be registered in the dataset
-		registerTsuidsInDataset();
 		
 		logger.info("Cleaning pass on the items imported list done in {}", Duration.between(startDate, Instant.now()).toString());
 	}
@@ -314,7 +305,7 @@ public class ImportSessionIngester implements Runnable {
 				// move the item as imported in the session only if import is completed
 				registerFunctionalIdent(importItem);
 				registerMetadata(importItem);
-				perpareToRegisterInDataset(importItem);
+				registerFuncIdInDataset(importItem);
 				importItem.setItemImported();
 				break;
 			case COMPLETED:
@@ -331,9 +322,6 @@ public class ImportSessionIngester implements Runnable {
 				break;
 			}
 		}
-		
-		// force tsuids to be registered in the dataset
-		registerTsuidsInDataset();
 		
 		logger.info("Cleaning pass on the items to import list done in {}", Duration.between(startDate, Instant.now()).toString());
 	}
@@ -488,7 +476,7 @@ public class ImportSessionIngester implements Runnable {
 				// move the item as imported in the session only if import is completed
 				registerFunctionalIdent(importItem);
 				registerMetadata(importItem);
-				perpareToRegisterInDataset(importItem);
+				registerFuncIdInDataset(importItem);
 				importItem.setItemImported();
 				break;
 			case ERROR:
@@ -504,50 +492,23 @@ public class ImportSessionIngester implements Runnable {
 
 	
 	/**
-	 * Record the item for future linking in the dataset by {@link ImportItemAnalyserThread#registerTsuidsInDataset() registerTsuidsInDataset}<br>
-	 * 
-	 * @param importItem the item for which the TSUID is to be registered in the dataset in the next batch record.
+	 * Register the current time serie into the dataset.<br>
 	 */
-	private synchronized void perpareToRegisterInDataset(ImportItem importItem) {
-		if (tsuidToRegister == null) {
-			tsuidToRegister = new HashMap<String, ImportItem>();
-		}
-		
-		// add the tsuid to the batch
-		tsuidToRegister.put(importItem.getTsuid(), importItem);
-		
-		// register the batch of items in the dataset if size is raised 
-		// or if there is no more items to import
-		if (tsuidToRegister.size() % REGISTER_TSUID_DATASET_BATCH_SIZE == 0 
-				|| session.getItemsToImport().size() == 0) {
-			registerTsuidsInDataset();
-		}
-	}
-	
-	/**
-	 * Register the current list of TSUIDs collected with {@link ImportItemAnalyserThread#perpareToRegisterInDataset(ImportItem)} into the dataset.<br>
-	 */
-	private synchronized void registerTsuidsInDataset() {
+	private void registerFuncIdInDataset(ImportItem item) {
 		
 		try {
 			// update the list of tsuid for the dataset
 			DataSetFacade datasetService = process.getDatasetService();
-			ArrayList<String> tsuidToRegisterList = new ArrayList<String>();
-			tsuidToRegisterList.addAll(tsuidToRegister.keySet());
-			datasetService.updateInAppendMode(session.getDataset(), null, tsuidToRegisterList);
-			
-			// set the status COMPLETED for each registered item in the dataset
-			tsuidToRegister.values().forEach( item -> item.setStatus(ImportStatus.COMPLETED));
+			datasetService.updateInAppendMode(item.getSession().getDataset(), item.getFuncId());
 		} 
-		catch (IkatsDaoException | NullPointerException e) {
-			String message = "Can't register a list of tsuids in dataset '" + session.getDataset() + "'";
-			session.addError(message);
+		catch (IkatsDaoException e) {
+			session.addError(e.toString());
 			session.addError("Exception " + e.getClass().getName() + " | Message: " + e.getMessage());
 			if (! logger.isDebugEnabled()) {
-				logger.error(message);
+				logger.error(e.getMessage());
 				logger.error("Exception {} | Message: {}", e.getClass().getName(), e.getMessage());
 			} else {
-				logger.debug(message, e);
+				logger.debug(e.getMessage(), e);
 			}
 			
 			session.setStatus(ImportStatus.ERROR);
