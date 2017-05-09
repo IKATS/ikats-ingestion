@@ -191,6 +191,9 @@ public class SessionStats {
 				// add to top of the pile
 				runs.add(currentRun);
 				
+				
+				currentRun.numberOfItemsToImport = sessionLink.getItemsToImport().size();
+				
 			} else {
 				logger.warn("Request to timestamp a new ingestion run (session {}) while the previous runs has no completed date. Updating the dateIngestionStarted property only.", sessionLink.getId());
 			}
@@ -229,6 +232,7 @@ public class SessionStats {
 		// Compute the duration (now if ingestion not completed)
 		Instant toDate = (currentRun.dateIngestionCompleted == null) ? Instant.now() : currentRun.dateIngestionCompleted;
 		Duration ingestionDuration = Duration.between(currentRun.dateIngestionStarted, toDate);
+		currentRun.dateIngestionDuration = ingestionDuration;
 		
 		// update average / min / max rate of Points/second
 		currentRun.avgPointsPerSecond = (float) currentRun.numberOfPointsSent / (float) ingestionDuration.toMillis() * 1000F ;
@@ -254,6 +258,7 @@ public class SessionStats {
 	 */
 	public void setNumberOfItemsToImport(int numberOfItemsToImport) {
 		this.numberOfItemsToImport = numberOfItemsToImport;
+		currentRun.numberOfItemsToImport = numberOfItemsToImport;
 	}
 
 	/**
@@ -262,7 +267,7 @@ public class SessionStats {
 	 */
 	public void setNumberOfItemsImported(int numberOfItemsImported) {
 		// set only the points imported in the current run
-		currentRun.numberOfItemsImported = numberOfItemsImported - previousRun.numberOfItemsImported;
+		currentRun.numberOfItemsImported = numberOfItemsImported - currentRun.numberOfItemsToImport;
 		
 		// provide the total information for the session
 		this.numberOfItemsImported = numberOfItemsImported;
@@ -299,6 +304,7 @@ public class SessionStats {
 			"dateIngestionStarted",
 			"dateIngestionCompleted",
 			"dateIngestionDuration",
+			"numberOfItemsToImport",
 			"numberOfItemsImported",
 			"numberOfItemsInError",
 			"numberOfPointsSent",
@@ -309,6 +315,7 @@ public class SessionStats {
 			"maxPointsPerSecond"})
 	public static class Run {
 		
+
 		@XmlJavaTypeAdapter(value = InstantXmlAdapter.class)
 		Instant dateIngestionStarted;
 		
@@ -317,6 +324,8 @@ public class SessionStats {
 		
 		@XmlJavaTypeAdapter(value = DurationXmlAdapter.class)
 		Duration dateIngestionDuration;
+		
+		int numberOfItemsToImport = 0;
 		
 		int numberOfItemsImported = 0;
 		

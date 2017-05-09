@@ -1,8 +1,10 @@
 package fr.cs.ikats.ingestion.process;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
@@ -50,6 +52,8 @@ public class ImportSessionIngester implements Runnable {
 	/** Synchronized list of ({@link Future}) tasks */
 	private List<Future<ImportItem>> submitedTasks = Collections.synchronizedList(new ArrayList<Future<ImportItem>>());
 	
+	private HashMap<String, ImportItem>tsuidToRegister = new HashMap<String, ImportItem>();
+
 	private MetaDataFacade metaDataFacade;
 
 	private Logger logger = LoggerFactory.getLogger(ImportSessionIngester.class);
@@ -133,8 +137,14 @@ public class ImportSessionIngester implements Runnable {
 	 * </p>
 	 */
 	public void run() {
+		
+		// Management of 'a posteriori' robustness.
+		// Do a cleaning pass in the items lists for sessions that were aborted
+		itemsImportedCleaningPass();
+		itemsToImportCleaningPass();
 
 		// Launch import results analyser thread
+		logger.info("Starting ingestion of {} items for dataset {}", session.getItemsToImport().size(), session.getDataset());
 	    
 	    // Review#147170 c'est un runnable pas un thread ... renommer en importItemAnalyserRunnable ?
 		ImportItemAnalyserThread importItemAnalyserThread = new ImportItemAnalyserThread();
@@ -185,7 +195,6 @@ public class ImportSessionIngester implements Runnable {
 						break;
 					}
 				}
-
 			}
 			
 			try {
@@ -213,6 +222,9 @@ public class ImportSessionIngester implements Runnable {
 		finally {
 			session.getStats().timestampIngestion(false);
 			session.setEndDate(session.getStats().getDateIngestionCompleted());
+			
+			// force last tsuids to be registered in the dataset if needed
+			registerTsuidsInDataset();
 
 			// set ingest session final state
 			if (importItemAnalyserThread.state == ImportItemAnalyserState.COMPLETED) {
@@ -223,6 +235,107 @@ public class ImportSessionIngester implements Runnable {
 			}
 		}
 
+	}
+
+	/**
+	 * Do a pass on the {@link ImportSession#getItemsToImport()} list to clean the list depending on the item {@link ImportStatus}
+	 */
+	private void itemsImportedCleaningPass() {
+		
+		Object[] items = session.getItemsImported().toArray();
+		
+		Instant startDate = Instant.now();
+		logger.info("Doing cleaning pass on the items imported list for {} items...", items.length);
+		
+		for (int i = 0; i < items.length; i++) {
+			ImportItem importItem = (ImportItem) items[i];
+			
+			// Check the import item status and move item from toImport list 
+			// to one of the completed or erroneous list
+			switch (importItem.getStatus()) {
+			case CREATED:
+				// Do nothing, the item will be processed
+				break;
+			case ANALYSED:
+			case RUNNING:
+			case ERROR: // For erroneous items, as we restart a session, reset them 
+				// Reset to CREATED
+				importItem.setStatus(ImportStatus.CREATED);
+				break;
+			case IMPORTED:
+				// move the item as imported in the session only if import is completed
+				registerFunctionalIdent(importItem);
+				registerMetadata(importItem);
+				perpareToRegisterInDataset(importItem);
+				break;
+			case COMPLETED:
+				// Do nothing, the item is fully completed
+				break;
+			case CANCELLED:
+			default:
+				// move the item in the errors stack
+				importItem.setItemInError();
+				break;
+			}
+		}
+		
+		// force tsuids to be registered in the dataset
+		registerTsuidsInDataset();
+		
+		logger.info("Cleaning pass on the items imported list done in {}", Duration.between(startDate, Instant.now()).toString());
+	}
+
+	/**
+	 * Do a pass on the {@link ImportSession#getItemsToImport()} list to clean the list depending on the item {@link ImportStatus}
+	 */
+	private void itemsToImportCleaningPass() {
+		
+		Object[] items = session.getItemsToImport().toArray();
+		
+		Instant startDate = Instant.now();
+		logger.info("Doing cleaning pass on the items to import list for {} items...", items.length);
+
+		for (int i = 0; i < items.length; i++) {
+			ImportItem importItem = (ImportItem) items[i];
+			
+			// Check the import item status and move item from toImport list 
+			// to one of the completed or erroneous list
+			switch (importItem.getStatus()) {
+			case CREATED:
+				// Do nothing, the item will be processed
+				break;
+			case ANALYSED:
+			case RUNNING:
+			case ERROR:
+				// Reset to CREATED
+				importItem.setStatus(ImportStatus.CREATED);
+				break;
+			case IMPORTED:
+				// move the item as imported in the session only if import is completed
+				registerFunctionalIdent(importItem);
+				registerMetadata(importItem);
+				perpareToRegisterInDataset(importItem);
+				importItem.setItemImported();
+				break;
+			case COMPLETED:
+				// Should not be there...
+				importItem.addError("The item was in the getItemsToImport list. Database consistency to be verified.");
+				logger.error("The item {} was in the getItemsToImport list, db consistentcy to be checked", importItem.getTsuid());
+				// move the item in the errors stack
+				importItem.setItemInError();
+				break;
+			case CANCELLED:
+			default:
+				// move the item in the errors stack
+				importItem.setItemInError();
+				break;
+			}
+		}
+		
+		// force tsuids to be registered in the dataset
+		registerTsuidsInDataset();
+		
+		logger.info("Cleaning pass on the items to import list done in {}", Duration.between(startDate, Instant.now()).toString());
 	}
 
 	/**
@@ -262,8 +375,6 @@ public class ImportSessionIngester implements Runnable {
 		/** State of the thread */
 		private ImportItemAnalyserState state = ImportItemAnalyserState.INIT;
 		
-		private List<String> tsuidToRegister = new ArrayList<String>();
-
 		/**
 		 * Test with regard to this.state if if the loop should continue running
 		 * @return true if the loop should continue running
@@ -316,7 +427,6 @@ public class ImportSessionIngester implements Runnable {
 							// finally removes the current ImportResult out of the stack.
 							iterator.remove();
 						}
-						
 					}
 				}
 				
@@ -333,28 +443,6 @@ public class ImportSessionIngester implements Runnable {
 							// let an ultimate chance for tasks to finish
 							state = ImportItemAnalyserState.LASTPASS;
 							logger.trace("Last pass in the loop"); 
-						}
-						// Last check on the list of items to import
-						if (session.getItemsToImport().size() > 0) {
-							
-							logger.warn("There are {} item(s) in the itemsToImport list. Processing now.", session.getItemsToImport().size());
-							
-							// Process items that where not processed by the analyser thread
-							session.getItemsToImport().forEach(Item -> processImportItem(Item));
-							
-							if (session.getItemsToImport().size() > 0) {
-								logger.warn("There are yet {} item(s) in the itemsToImport list after normal processing.", session.getItemsToImport().size());
-								
-								session.getItemsToImport().forEach(item -> {
-									// set the rest of items in the error list
-									ImportStatus oldStatus = item.getStatus();
-									item.setStatus(ImportStatus.ERROR);
-									item.setItemInError();
-									item.addError(Instant.now() + " - tem not processed. Old state: " + oldStatus);
-
-									logger.error("Item {} not processed. Set in error list. Old state: {}", item.getFuncId(), oldStatus);
-								});
-							}
 						}
 					case RUNNING:
 					default: // continue to loop
@@ -394,13 +482,14 @@ public class ImportSessionIngester implements Runnable {
 			case RUNNING:
 				// The import task is running
 			case COMPLETED:
+				// Finished, nothing to do
 				break;
 			case IMPORTED:
 				// move the item as imported in the session only if import is completed
-				importItem.setItemImported();
 				registerFunctionalIdent(importItem);
 				registerMetadata(importItem);
 				perpareToRegisterInDataset(importItem);
+				importItem.setItemImported();
 				break;
 			case ERROR:
 			case CANCELLED:
@@ -410,167 +499,174 @@ public class ImportSessionIngester implements Runnable {
 				break;
 			}
 		}
-		
-		/**
-		 * Record the item for future linking in the dataset by {@link ImportItemAnalyserThread#registerTsuidsInDataset() registerTsuidsInDataset}<br>
-		 * 
-		 * @param importItem the item for which the TSUID is to be registered in the dataset in the next batch record.
-		 */
-		private void perpareToRegisterInDataset(ImportItem importItem) {
-			if (tsuidToRegister == null) {
-				tsuidToRegister = new ArrayList<String>();
-			}
-			
-			// add the tsuid to the batch
-			tsuidToRegister.add(importItem.getTsuid());
-			
-			// register the batch of items in the dataset if size is raised 
-			// or if there is no more items to import
-			if (tsuidToRegister.size() % REGISTER_TSUID_DATASET_BATCH_SIZE == 0 
-					|| session.getItemsToImport().size() == 0) {
-				registerTsuidsInDataset();
-			}
+
+	} // End class ImportItemAnalyserThread
+
+	
+	/**
+	 * Record the item for future linking in the dataset by {@link ImportItemAnalyserThread#registerTsuidsInDataset() registerTsuidsInDataset}<br>
+	 * 
+	 * @param importItem the item for which the TSUID is to be registered in the dataset in the next batch record.
+	 */
+	private synchronized void perpareToRegisterInDataset(ImportItem importItem) {
+		if (tsuidToRegister == null) {
+			tsuidToRegister = new HashMap<String, ImportItem>();
 		}
 		
-		/**
-		 * Register the current list of TSUIDs collected with {@link ImportItemAnalyserThread#perpareToRegisterInDataset(ImportItem)} into the dataset.<br>
-		 */
-		private void registerTsuidsInDataset() {
+		// add the tsuid to the batch
+		tsuidToRegister.put(importItem.getTsuid(), importItem);
+		
+		// register the batch of items in the dataset if size is raised 
+		// or if there is no more items to import
+		if (tsuidToRegister.size() % REGISTER_TSUID_DATASET_BATCH_SIZE == 0 
+				|| session.getItemsToImport().size() == 0) {
+			registerTsuidsInDataset();
+		}
+	}
+	
+	/**
+	 * Register the current list of TSUIDs collected with {@link ImportItemAnalyserThread#perpareToRegisterInDataset(ImportItem)} into the dataset.<br>
+	 */
+	private synchronized void registerTsuidsInDataset() {
+		
+		try {
+			// update the list of tsuid for the dataset
+			DataSetFacade datasetService = process.getDatasetService();
+			ArrayList<String> tsuidToRegisterList = new ArrayList<String>();
+			tsuidToRegisterList.addAll(tsuidToRegister.keySet());
+			datasetService.updateInAppendMode(session.getDataset(), null, tsuidToRegisterList);
 			
+			// set the status COMPLETED for each registered item in the dataset
+			tsuidToRegister.values().forEach( item -> item.setStatus(ImportStatus.COMPLETED));
+		} 
+		catch (IkatsDaoException | NullPointerException e) {
+			String message = "Can't register a list of tsuids in dataset '" + session.getDataset() + "'";
+			session.addError(message);
+			session.addError("Exception " + e.getClass().getName() + " | Message: " + e.getMessage());
+			if (! logger.isDebugEnabled()) {
+				logger.error(message);
+				logger.error("Exception {} | Message: {}", e.getClass().getName(), e.getMessage());
+			} else {
+				logger.debug(message, e);
+			}
+			
+			session.setStatus(ImportStatus.ERROR);
+		}
+		finally {
+			// clear the list for next batch of tsuids.
+			tsuidToRegister.clear();
+		}
+	}
+	
+	/**
+	 * Register the Functional Identifier of the Ikats TS.
+	 * 
+	 * @param importItem the item for which the {@link ImportItem#getFuncId() FunctionalIdentifier} have to be registered.
+	 */
+	private void registerFunctionalIdent(ImportItem importItem) {
+		
+		FunctionalIdentifier registeredFID = metaDataFacade.getFunctionalIdentifierByTsuid(importItem.getTsuid());
+		if (registeredFID == null) {
+			// We do not have an existing FID in the database. Create it.
 			try {
-				// update the list of tsuid for the dataset
-				DataSetFacade datasetService = process.getDatasetService();
-				datasetService.updateInAppendMode(session.getDataset(), null, tsuidToRegister);
-			} catch (IkatsDaoException | NullPointerException e) {
-				String message = "Can't register a list of tsuids in dataset '" + session.getDataset() + "'";
-				session.addError(message);
-				session.addError("Exception " + e.getClass().getName() + " | Message: " + e.getMessage());
-				if (! logger.isDebugEnabled()) {
-					logger.error(message);
-					logger.error("Exception {} | Message: {}", e.getClass().getName(), e.getMessage());
-				} else {
-					logger.debug(message, e);
-				}
-				
-				session.setStatus(ImportStatus.ERROR);
-			}
-			finally {
-				// clear the list for next batch of tsuids.
-				tsuidToRegister.clear();
-			}
-		}
-		
-		/**
-		 * Register the Functional Identifier of the Ikats TS.
-		 * 
-		 * @param importItem the item for which the {@link ImportItem#getFuncId() FunctionalIdentifier} have to be registered.
-		 */
-		private void registerFunctionalIdent(ImportItem importItem) {
-			
-			FunctionalIdentifier registeredFID = metaDataFacade.getFunctionalIdentifierByTsuid(importItem.getTsuid());
-			if (registeredFID == null) {
-				// We do not have an existing FID in the database. Create it.
-				try {
-					metaDataFacade.persistFunctionalIdentifier(importItem.getTsuid(), importItem.getFuncId());
-				} catch (IkatsDaoException e) {
-					// An error occured during persist of the functional identifier
-					String message = "Can't persist functional identifier '" +  importItem.getFuncId() + "' for tsuid " + importItem.getTsuid() + " ; item=" + importItem;
-					importItem.addError(message);
-					importItem.addError(e.getMessage());
-					if (! logger.isDebugEnabled()) {
-						logger.error(message);
-						logger.error(e.getMessage());
-					} else {
-						logger.debug(message, e);
-					}
-					
-					session.setItemInError(importItem);
-					importItem.setStatus(ImportStatus.ERROR);
-				}
-			} 
-			else { // We already have a functional identifier for that TSUID... 
-				
-				if (! registeredFID.getFuncId().equals(importItem.getFuncId())) {
-					// and it is not the same...
-					logger.warn("The TSDUID {} is already registered with Functional Identifier '{}' but the current calculated is '{}'. Keeping the old one.",
-							importItem.getTsuid(), registeredFID.getFuncId(), importItem.getFuncId());
-					importItem.setFuncId(registeredFID.getFuncId());
-				}
-				// else : nothing to do the exisitng FID is the same.
-			}
-		}
-		
-		/**
-		 * Register a metadata for each tag of the item.
-		 * @param importItem the item for which the {@link ImportItem#getTags()} have to be registered as metadata
-		 */
-		private void registerMetadata(ImportItem importItem) {
-			
-			ArrayList<MetaData> metadataList = new ArrayList<MetaData>();
-			
-			// set the metric as metadata
-			MetaData mdMetric = new MetaData();
-			mdMetric.setName("metric");
-			mdMetric.setDType(MetaType.string);
-			mdMetric.setValue(importItem.getMetric());
-			mdMetric.setTsuid(importItem.getTsuid());
-			metadataList.add(mdMetric);
-			
-			// set the start and end dates as metadata
-			MetaData mdStartDate = new MetaData();
-			mdStartDate.setName("ikats_start_date");
-			mdStartDate.setDType(MetaType.date);
-			mdStartDate.setValue(Long.toString(importItem.getStartDate().toEpochMilli()));
-			mdStartDate.setTsuid(importItem.getTsuid());
-			metadataList.add(mdStartDate);
-			MetaData mdEndDate = new MetaData();
-			mdEndDate.setName("ikats_end_date");
-			mdEndDate.setDType(MetaType.date);
-			mdEndDate.setValue(Long.toString(importItem.getEndDate().toEpochMilli()));
-			mdEndDate.setTsuid(importItem.getTsuid());
-			metadataList.add(mdEndDate);
-			
-			// set the number of points
-			MetaData mdNbPoints = new MetaData();
-			mdNbPoints.setName("qual_nb_points");
-			mdNbPoints.setDType(MetaType.number);
-			mdNbPoints.setValue(Long.toString(importItem.getNumberOfSuccess()));
-			mdNbPoints.setTsuid(importItem.getTsuid());
-			metadataList.add(mdNbPoints);
-			
-			
-			// Set the dataset tags as metadata
-			importItem.getTags().entrySet().forEach( tag -> {
-				MetaData mdTag = new MetaData();
-				mdTag.setName(tag.getKey());
-				mdTag.setDType(MetaType.string);
-				mdTag.setValue(tag.getValue());
-				mdTag.setTsuid(importItem.getTsuid());
-				metadataList.add(mdTag);
-			} );
-			
-			try {
-				// Save all the metadata with update option.
-				metaDataFacade.persist(metadataList, true);
-			}
-			catch (IkatsDaoException e) {
-				// An error occured during persist or update
-				String message = "Can't persist metadata for tsuid " + importItem.getTsuid() + " ; item=" + importItem.getFuncId();
+				metaDataFacade.persistFunctionalIdentifier(importItem.getTsuid(), importItem.getFuncId());
+			} catch (IkatsDaoException e) {
+				// An error occured during persist of the functional identifier
+				String message = "Can't persist functional identifier '" +  importItem.getFuncId() + "' for tsuid " + importItem.getTsuid() + " ; item=" + importItem;
 				importItem.addError(message);
 				importItem.addError(e.getMessage());
-				if (!logger.isDebugEnabled()) {
+				if (! logger.isDebugEnabled()) {
 					logger.error(message);
 					logger.error(e.getMessage());
 				} else {
 					logger.debug(message, e);
 				}
 				
-				// mark the item not fully "ingested"
 				session.setItemInError(importItem);
 				importItem.setStatus(ImportStatus.ERROR);
 			}
+		} 
+		else { // We already have a functional identifier for that TSUID... 
+			
+			if (! registeredFID.getFuncId().equals(importItem.getFuncId())) {
+				// and it is not the same...
+				logger.warn("The TSDUID {} is already registered with Functional Identifier '{}' but the current calculated is '{}'. Keeping the old one.",
+						importItem.getTsuid(), registeredFID.getFuncId(), importItem.getFuncId());
+				importItem.setFuncId(registeredFID.getFuncId());
+			}
+			// else : nothing to do the exisitng FID is the same.
 		}
+	}
+	
+	/**
+	 * Register a metadata for each tag of the item.
+	 * @param importItem the item for which the {@link ImportItem#getTags()} have to be registered as metadata
+	 */
+	private void registerMetadata(ImportItem importItem) {
 		
-	} // End class ImportItemAnalyserThread
-
+		ArrayList<MetaData> metadataList = new ArrayList<MetaData>();
+		
+		// set the metric as metadata
+		MetaData mdMetric = new MetaData();
+		mdMetric.setName("metric");
+		mdMetric.setDType(MetaType.string);
+		mdMetric.setValue(importItem.getMetric());
+		mdMetric.setTsuid(importItem.getTsuid());
+		metadataList.add(mdMetric);
+		
+		// set the start and end dates as metadata
+		MetaData mdStartDate = new MetaData();
+		mdStartDate.setName("ikats_start_date");
+		mdStartDate.setDType(MetaType.date);
+		mdStartDate.setValue(Long.toString(importItem.getStartDate().toEpochMilli()));
+		mdStartDate.setTsuid(importItem.getTsuid());
+		metadataList.add(mdStartDate);
+		MetaData mdEndDate = new MetaData();
+		mdEndDate.setName("ikats_end_date");
+		mdEndDate.setDType(MetaType.date);
+		mdEndDate.setValue(Long.toString(importItem.getEndDate().toEpochMilli()));
+		mdEndDate.setTsuid(importItem.getTsuid());
+		metadataList.add(mdEndDate);
+		
+		// set the number of points
+		MetaData mdNbPoints = new MetaData();
+		mdNbPoints.setName("qual_nb_points");
+		mdNbPoints.setDType(MetaType.number);
+		mdNbPoints.setValue(Long.toString(importItem.getNumberOfSuccess()));
+		mdNbPoints.setTsuid(importItem.getTsuid());
+		metadataList.add(mdNbPoints);
+		
+		
+		// Set the dataset tags as metadata
+		importItem.getTags().entrySet().forEach( tag -> {
+			MetaData mdTag = new MetaData();
+			mdTag.setName(tag.getKey());
+			mdTag.setDType(MetaType.string);
+			mdTag.setValue(tag.getValue());
+			mdTag.setTsuid(importItem.getTsuid());
+			metadataList.add(mdTag);
+		} );
+		
+		try {
+			// Save all the metadata with update option.
+			metaDataFacade.persist(metadataList, true);
+		}
+		catch (IkatsDaoException e) {
+			// An error occured during persist or update
+			String message = "Can't persist metadata for tsuid " + importItem.getTsuid() + " ; item=" + importItem.getFuncId();
+			importItem.addError(message);
+			importItem.addError(e.getMessage());
+			if (!logger.isDebugEnabled()) {
+				logger.error(message);
+				logger.error(e.getMessage());
+			} else {
+				logger.debug(message, e);
+			}
+			
+			// mark the item not fully "ingested"
+			session.setItemInError(importItem);
+			importItem.setStatus(ImportStatus.ERROR);
+		}
+	}
+	
 }  // End ImportSessionIngester

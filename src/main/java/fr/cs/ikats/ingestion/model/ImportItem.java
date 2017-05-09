@@ -46,7 +46,7 @@ public class ImportItem {
 	@XmlTransient
 	@JsonIgnore
 	private ImportSession importSession;
-	private List<String> errors;
+	private List<String> errors = new ArrayList<String>();
 	@XmlJavaTypeAdapter(value = InstantXmlAdapter.class)
 	private Instant importStartDate;
 	@XmlJavaTypeAdapter(value = InstantXmlAdapter.class)
@@ -77,7 +77,7 @@ public class ImportItem {
 	 */
 	public void afterUnmarshal(Unmarshaller u, Object parent) {
 		this.importSession = (ImportSession) parent;
-		logger.debug("afterUnmarshal called to set parent importSession (id={}) for item file={}", this.importSession.id, this.file.getName());
+		logger.trace("afterUnmarshal called to set parent importSession (id={}) for item file={}", this.importSession.id, this.file.getName());
 	}	
 
 
@@ -175,10 +175,6 @@ public class ImportItem {
 	}
 
 	public void addError(String error) {
-		if (errors == null) {
-			errors = new ArrayList<String>();
-		}
-		
 		errors.add(Instant.now() + " - " + error);
 	}
 
