@@ -135,6 +135,10 @@ public class ImportSessionIngester implements Runnable {
 	 */
 	public void run() {
 		
+		// Prepare the stats 
+		session.getStats().timestampIngestion(true);
+		session.setStartDate(session.getStats().getDateIngestionStarted());
+		
 		// Management of 'a posteriori' robustness.
 		// Do a cleaning pass in the items lists for sessions that were aborted
 		itemsImportedCleaningPass();
@@ -151,9 +155,6 @@ public class ImportSessionIngester implements Runnable {
 		thread.start();
 
 		// Launch the import loop
-		// The state is controlled on the 
-		session.getStats().timestampIngestion(true);
-		session.setStartDate(session.getStats().getDateIngestionStarted());
 
         // Review#147170 cf remarque entete de ImportItemAnalyserThread ... la machine a etats pourrait evoluer ...
         // Review#147170 ... vers if ( CREATED) ... else if ( IMPORTED ) ... 
