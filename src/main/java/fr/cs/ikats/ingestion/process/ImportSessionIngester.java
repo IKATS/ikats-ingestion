@@ -254,13 +254,15 @@ public class ImportSessionIngester implements Runnable {
 			case RUNNING:
 			case ERROR: // For erroneous items, as we restart a session, reset them 
 				// Reset to CREATED
+				logger.warn("Item {} state resetted to CREATED (Old state: {})", importItem.getFuncId(), importItem.getStatus());
 				importItem.setStatus(ImportStatus.CREATED);
 				break;
 			case IMPORTED:
 				// move the item as imported in the session only if import is completed
+				logger.warn("Item {} in state IMPORTED, database registration will be completed.", importItem.getFuncId());
 				registerFunctionalIdent(importItem);
 				registerMetadata(importItem);
-				registerFuncIdInDataset(importItem);
+				registerItemInDataset(importItem);
 				break;
 			case COMPLETED:
 				// Do nothing, the item is fully completed
@@ -268,6 +270,7 @@ public class ImportSessionIngester implements Runnable {
 			case CANCELLED:
 			default:
 				// move the item in the errors stack
+				logger.error("Item {} with state {}, put into the items in error list.", importItem.getFuncId(), importItem.getStatus());
 				importItem.setItemInError();
 				break;
 			}
@@ -299,25 +302,28 @@ public class ImportSessionIngester implements Runnable {
 			case RUNNING:
 			case ERROR:
 				// Reset to CREATED
+				logger.warn("Item {} state resetted to CREATED (Old state: {})", importItem.getFuncId(), importItem.getStatus());
 				importItem.setStatus(ImportStatus.CREATED);
 				break;
 			case IMPORTED:
 				// move the item as imported in the session only if import is completed
+				logger.error("Item {} is in state IMPORTED whereas it is in the items to import list, database registration will be completed.", importItem.getFuncId());
 				registerFunctionalIdent(importItem);
 				registerMetadata(importItem);
-				registerFuncIdInDataset(importItem);
+				registerItemInDataset(importItem);
 				importItem.setItemImported();
 				break;
 			case COMPLETED:
 				// Should not be there...
 				importItem.addError("The item was in the getItemsToImport list. Database consistency to be verified.");
-				logger.error("The item {} was in the getItemsToImport list, db consistentcy to be checked", importItem.getTsuid());
+				logger.error("The item {} was in the getItemsToImport list with 'COMPLETED' status. DB consistentcy to be checked", importItem.getTsuid());
 				// move the item in the errors stack
 				importItem.setItemInError();
 				break;
 			case CANCELLED:
 			default:
 				// move the item in the errors stack
+				logger.error("Item {} with state {}, put into the items in error list.", importItem.getFuncId(), importItem.getStatus());
 				importItem.setItemInError();
 				break;
 			}
@@ -476,7 +482,7 @@ public class ImportSessionIngester implements Runnable {
 				// move the item as imported in the session only if import is completed
 				registerFunctionalIdent(importItem);
 				registerMetadata(importItem);
-				registerFuncIdInDataset(importItem);
+				registerItemInDataset(importItem);
 				importItem.setItemImported();
 				break;
 			case ERROR:
@@ -492,14 +498,17 @@ public class ImportSessionIngester implements Runnable {
 
 	
 	/**
-	 * Register the current time serie into the dataset.<br>
+	 * Register the current item (representing the time serie) into the dataset.<br>
 	 */
-	private void registerFuncIdInDataset(ImportItem item) {
+	private void registerItemInDataset(ImportItem item) {
 		
 		try {
 			// update the list of tsuid for the dataset
 			DataSetFacade datasetService = process.getDatasetService();
-			datasetService.updateInAppendMode(item.getSession().getDataset(), item.getFuncId());
+			datasetService.updateInAppendMode(item.getTsuid(), item.getSession().getDataset());
+			
+			// Set final status on the item
+			item.setStatus(ImportStatus.COMPLETED);
 		} 
 		catch (IkatsDaoException e) {
 			session.addError(e.toString());
