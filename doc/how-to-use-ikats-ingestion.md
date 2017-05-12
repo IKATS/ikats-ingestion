@@ -77,8 +77,15 @@ Request:
   * __HTTP Verb__: `POST`  
   * __HTTP Body__: provides the DATA: with the <a href="#json-session-desc">JSON describing the session</a>.
 
-Response: the URL of the launched session: this is useful to grep its `<ID>` <a id="session-id"></a>: 
-  * `http://172.28.15.xx:8181/ikats-ingestion/api/sessions/<ID>`
+Nominal response: 
+  * header code HTTP `201`
+  * header *location* property, useful to grep the session `<ID>` <a id="session-id"></a>
+    from the value.  
+    Location example: `http://172.28.15.xx:8181/ikats-ingestion/api/sessions/<ID>`
+
+Error response:
+  * header code HTTP: error code `500|400|...`
+  * body: HTML content for additional error information.
    
 See also <a href="#tuto-http-requests">how to submit HTTP requests</a>
 
@@ -91,24 +98,32 @@ The JSON data to be sent shall contain the following properties:
  * **rootPath** The root path of the dataset on the import server where files are located  
    * Could be absolute, in that case, represent the path on the server
    * If relative, a configuration property will be used as prefix to the path (default: `/IKATSDATA`)
- * **pathPattern** Pattern rules for defining tags and metric of dataset:<br>
+ * **pathPattern** Regex pattern rules for defining tags and metric of dataset:<br>
    * The path is described with a regex
    * The root of the absolute path is the `rootPath`, and is not included in the pattern
-   * The metric and tags should be matched into regex named groups
-   * The regex **should have one metric** group defined with: `(?<metric>.*)`
-   * Each tag is defined with a regex group defined with: `(?<tagname>.*)`  
-   Examples:
+   * The metric and tags should be matched into regex named groups. Metric and tags will be saved as Meta-data useful for querying timeseries in IKATS.
+   * The pattern **must** define one **metric** with: `(?<metric>.*)`, it defines mandatory information (for OpenTSDB ) 
+   * Each tag is defined with a regex group defined with: `(?<tagname>.*)`
+     
+   Examples: patterns encoded in JSON string **(`\` needs to be doubled `\\`)**:
 	 * For EDF:
-	 `\/DAR\/(?<equipement>\w*)\/(?<metric>.*?)(?:_(?<validity>bad|good))?\.csv`
+	   > `\\/(?<equipement>\\w*)\\/(?<metric>.*?)_(?<validity>bad|good)\\.csv`
+	
 	 * For Airbus:
-	 `\/DAR\/(?<AircraftIdentifier>\w*)\/(?<metric>.*?)/raw_(?<FlightIdentifier>.*)\.csv`
+	   > `\\/DAR\\/(?<AircraftIdentifier>\\w*)\\/(?<metric>.*?)\\/raw_(?<FlightIdentifier>.*)\\.csv`
+ 
  * **funcIdPattern** Pattern configuring how is generated the _Functional Identifier_. This substitution pattern defines
    sections `${metric}` or `${<tagname>}` refering to  **pathPattern** groups, 
-   and replaced by respective group values matched by **pathPattern**.
-     * It follows Apache Commons Lang `StrSubstitutor` variable format, with any <tagname> or 'metric' as variables names.  
+   and replaced by respective group values matched by **pathPattern**. It follows Apache Commons Lang
+   `StrSubstitutor` variable format, with any <tagname> or 'metric' as variables names.  
+   
    Examples:
-    * For EDF : `${equipement}_${metric}_${validity}`
-	* For Airbus : `${AircraftIdentifier}_${FlightIdentifier}_${metric}`
+    * For EDF: 
+      > `${equipement}_${metric}_${validity}`
+	
+	* For Airbus:
+	  > `${AircraftIdentifier}_${FlightIdentifier}_${metric}`
+
  * **importer** Fully Qualified Name of the java importer used to transfer the Time-Serie data to the IKATS dedicated database.
    * This is a *plugin definiton* adapted to a database. 
      The *default plugin* is in example below: applicable to **OpenTSDB** database.
@@ -122,7 +137,7 @@ The JSON data to be sent shall contain the following properties:
 		"dataset": "DS_AIRBUS_26",
 		"description": "Dataset AIB pour correlation avec 26 parametres",
 		"rootPath": "DS_AIRBUS_PART_1_DONE",
-		"pathPattern": "\\/DAR\\/(?<AircraftId>\\w*)\\/(?<metric>.*?)/raw_(?<FlightId>.*)\\.csv",
+		"pathPattern": "\\/DAR\\/(?<AircraftId>\\w*)\\/(?<metric>.*?)\\/raw_(?<FlightId>.*)\\.csv",
 		"funcIdPattern": "T0511_${FlightId}_${metric}",
 		"serializer": "fr.cs.ikats.datamanager.client.opentsdb.importer.CommonDataJsonIzer",
 		"importer": "fr.cs.ikats.ingestion.process.opentsdb.OpenTsdbImportTaskFactory"
@@ -186,28 +201,45 @@ See also <a href="#tuto-http-requests">how to submit HTTP requests</a>
 ### How to submit HTTP requests 
 <a id="tuto-http-requests"></a>
 
+#### From linux bash
+Use the command *http* installed by [httpie](https://httpie.org/)
+1. For a body with JSON content: edit the JSON content in a file `req.json` 
+
+2. Launch the http command and read the response header and body
+
+   Example:
+      > http POST http://172.28.15.84:8181/ikats-ingestion/api/sessions < `req.json`
+      > > HTTP/1.1 201 \
+      > > Content-Length: 0 \
+      > > Date: Fri, 12 May 2017 07:02:50 GMT \
+      > > Location: http://172.28.15.84:8181/ikats-ingestion/api/sessions/6 \
+      > > Server: Apache TomEE
+      
 #### From firefox
-1. Browse your `<HTTP URL>`: for specific body or verb different from GET, this does not yet work, and you have to go to **step 2** 
+1. Browse your `<HTTP URL>`: for a specific body or a verb different from GET, this does not yet work, and you have to go to **step 2** 
 2. Open __Development tools__ and select the __Net__ frame
    1. From the browser: refresh the page
-   2. From the __Net__ view of the development tool: retrieve this request and edit it:
-     * Select the __Header__ frame,
+   2. Select the __Net__ tab of the development tool: view this request and edit it:
+     * Select the __Header__ frame
      * And click on  __Modify and resend__: from that new panel, you can customize your HTTP request
         * edit the **HTTP Verb**: `PUT|POST|DELETE|GET`
-        * edit the Request **HTTP body**: this is the good place to paste your `<JSON content>`
+        * add the json content in request: 
+          1. complete the Request **Request Header** with property content-type\
+           `Content-Type: application/json`
+          2. edit the Request **HTTP body**:\
+          `<JSON content>`
         * change the **HTTP URL** if needed.
+        * `Submit`
+     *  Check the Response Header from the submitted requests: visible from the **Header**.
+        For example when required to retrieve the session ID: read the header response *location* property.
         
-#### From linux bash
-Use the command http installed by [httpie](https://httpie.org/)
-  
-
 ## The Tomee application server 
 <a id="tomee-application-server"></a>
 
 ### Install requirements 
 The application server is [Apache Tomee](http://tomee.apache.org/download-ng.html). 
 
- * __Host__: for each IKATS cluster: fourth node<a id="server-host"></a>
+ * __Host__: for each IKATS cluster, *by convention* the fourth node<a id="server-host"></a>
    * server IP for cluster **PREPROD**: 172.28.15.**89**
    * server IP for cluster **INT**: 172.28.15.**84**
    * etc.
@@ -268,4 +300,5 @@ mvn -DskipTests clean install
 ```
 
 ### Maven profiles and "target"
-TBD
+Example with profile *int*
+mvn -Pint-target -DskipTests -Dtarget=int clean package tomcat7:deploy
