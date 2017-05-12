@@ -30,7 +30,7 @@ public class ExecutorPoolManager {
 	int corePoolSize = 5;
 	int maxPoolSize = 10;
 	long keepAliveTime = 5000;
-	int workingQueueSize = 10;
+	int workingQueueSize = 15;
 
 	// Review#147170 quasi redondant avec la factory de IngestionService ? pourquoi 
     // Review#147170 y a t il une difference dans name=... ?

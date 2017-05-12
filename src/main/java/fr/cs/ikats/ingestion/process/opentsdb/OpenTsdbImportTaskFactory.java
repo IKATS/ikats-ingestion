@@ -33,6 +33,7 @@ import fr.cs.ikats.ingestion.exception.IngestionException;
 import fr.cs.ikats.ingestion.exception.NoPointsToImportException;
 import fr.cs.ikats.ingestion.model.ImportItem;
 import fr.cs.ikats.ingestion.model.ImportStatus;
+import fr.cs.ikats.ingestion.model.SessionStats;
 import fr.cs.ikats.ingestion.process.AbstractImportTaskFactory;
 import fr.cs.ikats.util.configuration.ConfigProperties;
 import fr.cs.ikats.util.configuration.IkatsConfiguration;
@@ -78,6 +79,8 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 	 */
 	class ImportTask implements Callable<ImportItem> {
 		
+		private static final int MAX_GETTSUID_TRIES = 6;
+		private static final long WAIT_BEFORE_GETTSUID_TRIES = 5000;
 		private ImportItem importItem;
 
 		public ImportTask(ImportItem importItem) {
@@ -102,26 +105,48 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 				
 				// 1- Send the TS
 				sendItemInChunks(jsonizer);
-				
-				// 2- Get the resulting TSUID
-		        String tsuid = getTSUID(importItem.getMetric(), jsonizer.getDates()[0], importItem.getTags());
 				importItem.setImportEndDate(Instant.now());
-
-		        importItem.setTsuid(tsuid);
-		        if (tsuid == null || tsuid.isEmpty()) {
-		        	throw new IngestionException("Could not get OpenTSDB tsuid for item: " + importItem);
-		        } 
-		        
-		        importItem.setStatus(ImportStatus.IMPORTED);
-		        
-		        // 3- Provide ImportItem with imported key values
+				
+				// 2- Provide ImportItem with imported key values
 				importItem.setStartDate(Instant.ofEpochMilli(jsonizer.getDates()[0]));
 				importItem.setEndDate(Instant.ofEpochMilli(jsonizer.getDates()[1]));
+
+				// 3- Get the resulting TSUID
+				String tsuid = getTSUID(importItem.getMetric(), jsonizer.getDates()[0], importItem.getTags());
+		        if (tsuid == null || tsuid.isEmpty()) {
+		        	
+		        	// Run into a strategy of retries to get the TSUID
+		        	int tries = 0;
+		        	do {
+		        		logger.trace("getTSUID retry #{} for item {}", tries + 1, importItem.getFuncId());
+		        		Thread.sleep(WAIT_BEFORE_GETTSUID_TRIES);
+		        		tsuid = getTSUID(importItem.getMetric(), jsonizer.getDates()[0], importItem.getTags());
+		        		tries ++;
+		        		
+		        	} while ((tsuid == null || tsuid.isEmpty()) && tries <= MAX_GETTSUID_TRIES);
+
+		        	// Test whether or not we finally got the TSUID, if not throw an exception.
+		        	if (tsuid == null || tsuid.isEmpty()) {
+		        		logger.trace("TSUID not retrieved after {} tries, for item {}", tries - 1, importItem.getFuncId());
+		        		throw new IngestionException("Could not get OpenTSDB tsuid for item: " + importItem.getFuncId());
+		        	} else {
+		        		logger.debug("TSUID retrieved after {} tries, for item {}", tries - 1, importItem.getFuncId());
+		        	}
+		        } 
+		        
+		        importItem.setTsuid(tsuid);
+		        importItem.setStatus(ImportStatus.IMPORTED);
+				
+				// Update stats
+				SessionStats stats = importItem.getSession().getStats();
+				stats.addPoints(jsonizer.getTotalPointsRead(), 
+						importItem.getNumberOfSuccess(),
+						importItem.getNumberOfFailed());
 			}
 			catch (IngestionException | IngestionError e) {
 				
 				logger.error(e.getMessage(), e.getCause());
-				importItem.addError(e.getMessage());
+				importItem.addError("Exception: " + e.getMessage() + ((e.getCause() == null) ? "" : " - Cause: " + e.getCause().toString())) ;
 				
 				// In the case of a managed exception, we put the item in error mode in order to allow a future ingestion
 				// except in the case of there is no points to import  
@@ -135,10 +160,14 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 			catch (Exception | Error e) {
 				
 				// We need to catch all exceptions and errors because the thread status could not be managed otherwise.
-				FormattingTuple arrayFormat = MessageFormatter.format("Error while processing item {} for file {} ", importItem.getFuncId(), importItem.getFile().toString());
-				logger.error(arrayFormat.getMessage(), e);
-				importItem.addError(e.getMessage());
+				logger.error("Error while processing item {} for file {}", importItem.getFuncId(), importItem.getFile().toString());
+				
+				FormattingTuple arrayFormat = MessageFormatter.format("Exception: {} - Cause: {}", e.toString(), (e.getCause() == null) ? "null" : e.getCause().toString());
+				importItem.addError(arrayFormat.getMessage());
+				
+				// This is a non managed error: Cancel the item
 				importItem.setStatus(ImportStatus.CANCELLED);
+				
 			} 
 			finally {
 				
@@ -238,10 +267,10 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 					String json = jsonizer.next(IMPORT_NB_POINTS_BY_BATCH);
 					if (json != null && !json.isEmpty()) {
 						String url = (String) config.getString(ConfigProps.OPENTSDB_IMPORT_URL);
-						logger.debug("Sending chunk #{} for item {}", chunkIndex, importItem.getFuncId());
+						logger.trace("Sending chunk #{} for item {}", chunkIndex, importItem.getFuncId());
 						Response response = RequestSender.sendPUTJsonRequest(url, json);
 						ImportResult result = ResponseParser.parseImportResponse(response);
-						logger.debug("Import finished for chunk #{} of item {}", chunkIndex, importItem.getFuncId());
+						logger.trace("Import finished for chunk #{} of item {}", chunkIndex, importItem.getFuncId());
 						
 						// Aggregate the result of this chunk into the item result
 						importItem.addNumberOfSuccess(result.getNumberOfSuccess());
@@ -304,7 +333,7 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 			if (matcher.matches()) {
 			    tsuid = matcher.group(1);
 			}
-			logger.debug("TSUID extracted: <{}>", tsuid);
+			logger.trace("TSUID extracted: <{}>", tsuid);
 			
 			return tsuid;
 	    }

@@ -19,6 +19,7 @@ import org.slf4j.LoggerFactory;
 
 import fr.cs.ikats.ingestion.api.ImportSessionDto;
 import fr.cs.ikats.ingestion.exception.IngestionRejectedException;
+import fr.cs.ikats.ingestion.model.ImportItem;
 import fr.cs.ikats.ingestion.model.ImportSession;
 import fr.cs.ikats.ingestion.model.ImportStatus;
 import fr.cs.ikats.ingestion.model.ModelManager;
@@ -94,7 +95,7 @@ public class IngestionService {
 		
 		ImportSession newSession = new ImportSession(session);
 		this.sessions.add(newSession);
-		logger.info("ImportSession added: (id={}), {}", newSession.getId(), newSession.toString());
+		logger.info("ImportSession added: (id={}), for dataset {}", newSession.getId(), newSession.getDataset());
 		
 		// Start asynchronous import analysis
 		startIngestionProcess(newSession);
@@ -167,19 +168,29 @@ public class IngestionService {
 	public void restartSession(int id, boolean force) {
 		
     	ImportSession session = (ImportSession) getSession(id);
+    	int nbItemsRestarted = 0;
     	
     	// For each item in error, put it in the list of items to import and change its status.
-		session.getItemsInError().forEach(itemInError -> {
+    	logger.info("Session {} to be restarted for {} status. Number of items in the errors list: {}", 
+    			session.getId(),
+    			(force) ? "ERROR or CANCELLED" : "ERROR",
+    			session.getItemsInError().size());
+    	
+    	for (ImportItem itemInError : session.getItemsInError()) {
+			
 			if (itemInError.getStatus() == ImportStatus.ERROR || force == true) {
 				// reset only item with status ERROR, or with any status in case of force.
 				try {
 					session.setItemToImport(itemInError);
 					itemInError.setStatus(ImportStatus.CREATED);
+					nbItemsRestarted ++;
 				} catch (Exception e) {
-					logger.error("Error while restting item {} for InError for restarting ingestion: {}", itemInError.getFuncId(), e.getMessage());
+					logger.error("Error while reseting item {} from InError for restarting ingestion: {}", itemInError.getFuncId(), e.toString());
 				}
 			}
-		});
+		}
+		
+		logger.info("The restart of session {} will be launched with {} items to reimport.", session.getId(), nbItemsRestarted);
 		
 		// Reset the status of the session
 		session.setStatus(ImportStatus.DATASET_REGISTERED);

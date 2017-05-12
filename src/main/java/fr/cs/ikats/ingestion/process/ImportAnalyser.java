@@ -55,6 +55,8 @@ public class ImportAnalyser implements Runnable {
 	@Override
 	public void run() {
 		
+		session.getStats().timestampSessionAnalysis(true);
+		
 		// Check pathPattern parameter regarding regexp rules
 		try {
 			pathPatternCompiled = Pattern.compile(session.getPathPattern());
@@ -87,6 +89,10 @@ public class ImportAnalyser implements Runnable {
 		
 		// Finally walk over the directory tree to find the files matching our pathPattern regex and provide them as ImportItems with their tags. 
 		walkOverDataset();
+		
+		// Provide stats
+		session.getStats().timestampSessionAnalysis(false);
+		session.getStats().setNumberOfItemsInitial(session.getItemsToImport().size());
 		
 		// We have analyzed the session and collected all the items to import. 
 		session.setStatus(ImportStatus.ANALYSED);

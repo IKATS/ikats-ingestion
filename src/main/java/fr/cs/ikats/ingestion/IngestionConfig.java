@@ -6,7 +6,6 @@ public enum IngestionConfig implements ConfigProperties  {
 
 	// Properties values
 	IKATS_DEFAULT_IMPORTITEM_TASK_FACTORY("ingestion.default.importItemTaskFactory", "fr.cs.ikats.ingestion.process.DefaultImportNothingTaskFactory"), 
-	IKATS_INGESTER_TSUIDTODATASET_BATCH("ikats.ingester.batch.tsuidInDataSet", "100"),
 	IKATS_INGESTER_ROOT_PATH("ikats.ingester.root.path"),
 	METRIC_REGEX_GROUPNAME("ikats.ingester.regexp.groupname.metric", "metric");
 	
