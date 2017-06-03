@@ -18,6 +18,7 @@ import javax.ejb.Stateless;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import fr.cs.ikats.common.dao.exception.IkatsDaoConflictException;
 import fr.cs.ikats.common.dao.exception.IkatsDaoException;
 import fr.cs.ikats.ingestion.Configuration;
 import fr.cs.ikats.ingestion.IngestionConfig;
@@ -542,36 +543,65 @@ public class ImportSessionIngester implements Runnable {
 	 */
 	private void registerFunctionalIdent(ImportItem importItem) {
 		
-		FunctionalIdentifier registeredFID = metaDataFacade.getFunctionalIdentifierByTsuid(importItem.getTsuid());
-		if (registeredFID == null) {
-			// We do not have an existing FID in the database. Create it.
-			try {
-				metaDataFacade.persistFunctionalIdentifier(importItem.getTsuid(), importItem.getFuncId());
-			} catch (IkatsDaoException e) {
-				// An error occured during persist of the functional identifier
-				String message = "Can't persist functional identifier '" +  importItem.getFuncId() + "' for tsuid " + importItem.getTsuid() + " ; item=" + importItem;
-				importItem.addError(message);
-				importItem.addError(e.getMessage());
-				if (! logger.isDebugEnabled()) {
-					logger.error(message);
-					logger.error(e.getMessage());
-				} else {
-					logger.debug(message, e);
-				}
-				
-				session.setItemInError(importItem);
-				importItem.setStatus(ImportStatus.ERROR);
-			}
+		try {
+			// try to create the FID in the database.
+			metaDataFacade.persistFunctionalIdentifier(importItem.getTsuid(), importItem.getFuncId());
 		} 
-		else { // We already have a functional identifier for that TSUID... 
+		catch (IkatsDaoConflictException idce) {
 			
-			if (! registeredFID.getFuncId().equals(importItem.getFuncId())) {
-				// and it is not the same...
-				logger.warn("The TSDUID {} is already registered with Functional Identifier '{}' but the current calculated is '{}'. Keeping the old one.",
-						importItem.getTsuid(), registeredFID.getFuncId(), importItem.getFuncId());
-				importItem.setFuncId(registeredFID.getFuncId());
+			FunctionalIdentifier existingFID = null;
+			try {
+				existingFID = metaDataFacade.getFunctionalIdentifierByFuncId(importItem.getFuncId());
+			} catch (IkatsDaoException e) {
+				logger.warn("Exception while accessing the FunctionalIdentifier {}; Exception: {}", importItem.getFuncId(), e.toString(), e);
 			}
-			// else : nothing to do the exisitng FID is the same.
+
+			// Test if the FID is found
+			if (existingFID != null) {
+				// Ok check whether it has the same TSUID
+				if (existingFID.getTsuid().equals(importItem.getTsuid())) {
+					// Do nothing : there is an FID identified with the same TSUID : ok !
+					logger.debug("DB complained for an already registered FID with the current FID. We do not have to do anything. (FuncId: {}, Tsuid: {})",
+							importItem.getFuncId(), importItem.getTsuid());
+				} 
+				else {
+					// yes, and it is not the same... -> ERROR
+					logger.error("The FuncId {} is already registered for TSUID '{}' but the current item TSUID '{}'. Item to import marked in error state.",
+							existingFID.getFuncId(), importItem.getTsuid());
+					
+					importItem.setStatus(ImportStatus.ERROR);
+					importItem.addError("Existing different TSUID '" + existingFID.getTsuid() + "' in the database for the current item");
+					session.setItemInError(importItem);
+				}
+			} 
+			else {
+				// Test whether database hold a FuncId with the same TSUID
+				FunctionalIdentifier existingTSUID = metaDataFacade.getFunctionalIdentifierByTsuid(importItem.getTsuid());
+				if (existingTSUID != null && ! existingTSUID.getFuncId().equals(importItem.getFuncId())) {
+					// and it is not the same...
+					logger.warn("The TSUID {} is already registered with Functional Identifier '{}' but the current calculated is '{}'. Keeping the old one.",
+							importItem.getTsuid(), existingTSUID.getFuncId(), importItem.getFuncId());
+					importItem.setFuncId(existingTSUID.getFuncId());
+				} 
+				else {
+					
+				}
+			}
+		}
+		catch (IkatsDaoException e) {
+			// An error occured during persist of the functional identifier
+			String message = "Can't persist functional identifier '" +  importItem.getFuncId() + "' for tsuid " + importItem.getTsuid() + " ; item=" + importItem;
+			importItem.addError(message);
+			importItem.addError(e.getMessage());
+			if (! logger.isDebugEnabled()) {
+				logger.error(message);
+				logger.error(e.getMessage());
+			} else {
+				logger.debug(message, e);
+			}
+			
+			importItem.setStatus(ImportStatus.ERROR);
+			session.setItemInError(importItem);
 		}
 	}
 	
@@ -641,8 +671,8 @@ public class ImportSessionIngester implements Runnable {
 			}
 			
 			// mark the item not fully "ingested"
-			session.setItemInError(importItem);
 			importItem.setStatus(ImportStatus.ERROR);
+			session.setItemInError(importItem);
 		}
 	}
 	
