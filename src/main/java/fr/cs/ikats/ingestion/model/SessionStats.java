@@ -67,7 +67,6 @@ public class SessionStats {
 	@SuppressWarnings("unused")
 	private int numberOfItemsToImport;
 	
-	@SuppressWarnings("unused")
 	private int numberOfItemsImported;
 
 	@SuppressWarnings("unused")
@@ -191,11 +190,15 @@ public class SessionStats {
 				// add to top of the pile
 				runs.add(currentRun);
 				
-				
-				currentRun.numberOfItemsToImport = sessionLink.getItemsToImport().size();
+				updateNumberOfItems();
 				
 			} else {
-				logger.warn("Request to timestamp a new ingestion run (session {}) while the previous runs has no completed date. Updating the dateIngestionStarted property only.", sessionLink.getId());
+				logger.warn("Request to timestamp a new ingestion run (session {}) while the previous runs has no completed date.", sessionLink.getId());
+				
+				// Reset the counters
+				currentRun.numberOfItemsToImport = sessionLink.getItemsToImport().size();
+				currentRun.numberOfItemsInError = 0;
+				currentRun.numberOfItemsImported = 0;
 			}
 			
 			// set start date to the "peek" of the FIFO 
@@ -216,18 +219,19 @@ public class SessionStats {
 	 * Add the points to the total of points sent and compute the ingest rate for the current run.
 	 * 
 	 * @param pointsSent
-	 * @param numberOfSuccess
-	 * @param numberOfFailed
 	 */
-	public synchronized void addPoints(long pointsSent, long numberOfSuccess, long numberOfFailed) {
+	public synchronized void updateStats(ImportItem importItem) {
+		
+		// Update number of items to import / imported / in error
+		updateNumberOfItems();
 
 		// update number of points sent / success / failed for the session and for the current run
-		this.numberOfPointsSent += pointsSent;
-		currentRun.numberOfPointsSent += pointsSent;
-		this.numberOfPointsSuccess += numberOfSuccess;
-		currentRun.numberOfPointsSuccess += numberOfSuccess;
-		this.numberOfPointsFailed += numberOfFailed;
-		currentRun.numberOfPointsFailed += numberOfFailed;
+		this.numberOfPointsSent += importItem.getPointsRead();
+		currentRun.numberOfPointsSent += importItem.getPointsRead();
+		this.numberOfPointsSuccess += importItem.getNumberOfSuccess();
+		currentRun.numberOfPointsSuccess += importItem.getNumberOfSuccess();
+		this.numberOfPointsFailed += importItem.getNumberOfFailed();
+		currentRun.numberOfPointsFailed += importItem.getNumberOfFailed();
 
 		// Compute the duration (now if ingestion not completed)
 		Instant toDate = (currentRun.dateIngestionCompleted == null) ? Instant.now() : currentRun.dateIngestionCompleted;
@@ -235,11 +239,14 @@ public class SessionStats {
 		currentRun.dateIngestionDuration = ingestionDuration;
 		
 		// update average / min / max rate of Points/second
-		currentRun.avgPointsPerSecond = (float) currentRun.numberOfPointsSent / (float) ingestionDuration.toMillis() * 1000F ;
-		if (currentRun.avgPointsPerSecond > currentRun.maxPointsPerSecond) 
-			currentRun.maxPointsPerSecond = currentRun.avgPointsPerSecond;
-		if (currentRun.avgPointsPerSecond < currentRun.minPointsPerSecond || currentRun.minPointsPerSecond == 0) 
-			currentRun.minPointsPerSecond = currentRun.avgPointsPerSecond;
+		int totalItemsProcessed = currentRun.numberOfItemsImported + currentRun.numberOfItemsInError;
+		
+		currentRun.importSpeedMean = currentRun.importSpeedMean + ((importItem.getImportSpeed() - currentRun.importSpeedMean) / totalItemsProcessed);
+		
+		if (importItem.getImportSpeed() > currentRun.importSpeedMax) 
+			currentRun.importSpeedMax = importItem.getImportSpeed() ;
+		if (importItem.getImportSpeed()  < currentRun.importSpeedMin || currentRun.importSpeedMin == 0) 
+			currentRun.importSpeedMin = importItem.getImportSpeed();
 	
 		updateDateStatsUpdated(toDate);
 	}
@@ -253,34 +260,34 @@ public class SessionStats {
 	}
 	
 	/**
-	 * Set the current number of items to import
+	 * Set the three values for the number of items at session and current run level
+	 * <ul>
+	 *   <li>items to import</li>
+	 *   <li>items imported</li>
+	 *   <li>items in error</li>
+	 * </ul>
+	 * 
 	 * @param numberOfItemsToImport
 	 */
-	public void setNumberOfItemsToImport(int numberOfItemsToImport) {
+	private void updateNumberOfItems() {
+		
+		// items to import
+		int numberOfItemsToImport = sessionLink.getItemsToImport().size();
 		this.numberOfItemsToImport = numberOfItemsToImport;
 		currentRun.numberOfItemsToImport = numberOfItemsToImport;
-	}
 
-	/**
-	 * Set the number of points imported, both at session level (total) and at the current run level 
-	 * @param numberOfItemsImported
-	 */
-	public void setNumberOfItemsImported(int numberOfItemsImported) {
-		// set only the points imported in the current run
-		currentRun.numberOfItemsImported = numberOfItemsImported - currentRun.numberOfItemsToImport;
+		// items imported :
+		int numberOfItemsImported = sessionLink.getItemsImported().size();
+		//  - in the current run (add the delta from the last number from the stats with the last provided number from the session)  
+		currentRun.numberOfItemsImported += numberOfItemsImported - this.numberOfItemsImported;
 		
-		// provide the total information for the session
+		//  - total information for the session
 		this.numberOfItemsImported = numberOfItemsImported;
 		float rateOfImportedItems =  (float) numberOfItemsImported / (float) this.numberOfItemsInitial;
 		this.rateOfImportedItems = MessageFormat.format("{0,number,#.##%}", rateOfImportedItems);
-	}
 
-	/**
-	 * Set the number of items in error for the current run
-	 * @param numberOfItemsInError
-	 */
-	public void setNumberOfItemsInError(int numberOfItemsInError) {
-		currentRun.numberOfItemsInError = numberOfItemsInError;
+		// items in error
+		currentRun.numberOfItemsInError = sessionLink.getItemsInError().size();
 	}
 
 	public Duration getDateSessionAnalysisDuration() {
@@ -310,9 +317,9 @@ public class SessionStats {
 			"numberOfPointsSent",
 			"numberOfPointsSuccess",
 			"numberOfPointsFailed",
-			"avgPointsPerSecond",
-			"minPointsPerSecond",
-			"maxPointsPerSecond"})
+			"importSpeedMean",
+			"importSpeedMin",
+			"importSpeedMax"})
 	public static class Run {
 		
 
@@ -337,11 +344,11 @@ public class SessionStats {
 		
 		long numberOfPointsFailed = 0L;
 		
-		float avgPointsPerSecond = 0F;
+		float importSpeedMean = 0F;
 		
-		float maxPointsPerSecond = 0F;
+		float importSpeedMax = 0F;
 
-		float minPointsPerSecond = 0F;
+		float importSpeedMin = 0F;
 	
 	}
 

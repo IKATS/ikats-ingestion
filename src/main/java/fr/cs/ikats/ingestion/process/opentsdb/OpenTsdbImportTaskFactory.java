@@ -33,7 +33,6 @@ import fr.cs.ikats.ingestion.exception.IngestionException;
 import fr.cs.ikats.ingestion.exception.NoPointsToImportException;
 import fr.cs.ikats.ingestion.model.ImportItem;
 import fr.cs.ikats.ingestion.model.ImportStatus;
-import fr.cs.ikats.ingestion.model.SessionStats;
 import fr.cs.ikats.ingestion.process.AbstractImportTaskFactory;
 import fr.cs.ikats.util.configuration.ConfigProperties;
 import fr.cs.ikats.util.configuration.IkatsConfiguration;
@@ -136,12 +135,6 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 		        
 		        importItem.setTsuid(tsuid);
 		        importItem.setStatus(ImportStatus.IMPORTED);
-				
-				// Update stats
-				SessionStats stats = importItem.getSession().getStats();
-				stats.addPoints(jsonizer.getTotalPointsRead(), 
-						importItem.getNumberOfSuccess(),
-						importItem.getNumberOfFailed());
 			}
 			catch (IngestionException | IngestionError e) {
 				
@@ -167,7 +160,6 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 				
 				// This is a non managed error: Cancel the item
 				importItem.setStatus(ImportStatus.CANCELLED);
-				
 			} 
 			finally {
 				
@@ -179,7 +171,6 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 
 			// the import item was provided with all its new properties
 			return this.importItem;
-
 		}
 
 		/**
@@ -291,6 +282,10 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 				} catch (IOException ioe) {
 					FormattingTuple arrayFormat = MessageFormatter.format("Item {} | I/O Exception readig file {}", importItem.getFuncId(), importItem.getFile().getPath());
 					throw new IngestionError(arrayFormat.getMessage(), ioe);
+				}
+				finally {
+					// set number of points read
+					importItem.setPointsRead(jsonizer.getTotalPointsRead());
 				}
 			}
 			
