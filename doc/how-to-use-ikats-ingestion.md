@@ -252,7 +252,7 @@ The application server is [Apache Tomee](http://tomee.apache.org/download-ng.htm
 
 ### Check the server status
 <a id="check-server-started"></a>
-Check that the server is started: browse the `http://172.28.15.xx`: TomEE welcome page should be available.
+Check that the server is started: browse the `http://172.28.15.xx:8181`: TomEE welcome page should be available.
   
 For further informations, select `Server status` from the welcome page, and enter the well-known __admin__ login/password to reach __admin page__:   
   * Follow the link `Lister les applications` 
@@ -267,7 +267,8 @@ For further informations, select `Server status` from the welcome page, and ente
 To start the application server you have to run from the <a href="#server-host">server host</a>
 
 ```bash
-cd /home/ingestion # will be the directory where the ingestion database file will be stored  
+cd /home/ikats/ingestion # will be the directory where the ingestion database file will be stored
+cd apache-tomee-plume-7.0.3
 bin/./catalina.sh jpda start # to tell the server to start with JPDA remote capabilities activated
 ```
  
@@ -277,7 +278,7 @@ bin/./catalina.sh jpda start # to tell the server to start with JPDA remote capa
 To stop the server from the <a href="#server-host">server host</a> use:
 
 ```bash
-/home/ikats/ingestion/apache-tomee-plume-7.0.2/bin/./shutdown.sh
+/home/ikats/ingestion/apache-tomee-plume-7.0.3/bin/./shutdown.sh
 ```
 
   
