@@ -317,9 +317,16 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 	    	
 	        // Build the tag map
 	        StringBuilder tagSb = new StringBuilder("{");
-	        tags.forEach((k, v) -> tagSb.append(k).append("=").append(v).append(","));
-	        // remove the trailing "," char
-	        tagSb.replace(tagSb.lastIndexOf(","), tagSb.length(), "}");
+	        // do not build the query part if there are no tags
+	        if (tags.size() > 0) {
+	        	tags.forEach((k, v) -> tagSb.append(k).append("=").append(v).append(","));
+	        	// remove the trailing "," char
+	        	tagSb.replace(tagSb.lastIndexOf(","), tagSb.length(), "}");
+	        } 
+	        else {
+	        	// no tags, the ingest part has used the metric as a tag (OpenTSDB requirement for at least one tag)
+	        	tagSb.append("metric=").append(metric).append("}");
+	        }
 	    	
 			String tsuid = null;
 			String apiUrl = (String) config.getProperty(ConfigProps.OPENTSDB_API_URL); 
