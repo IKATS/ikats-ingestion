@@ -1,6 +1,7 @@
 package fr.cs.ikats.ingestion.model;
 
 import java.io.File;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -53,6 +54,8 @@ public class ImportItem {
 	private Instant importEndDate;
     private long numberOfSuccess = 0;
     private long numberOfFailed = 0;
+    private long pointsRead = 0;
+    private float importSpeed = 0.0f;
 	
     @ToStringExclude
     @XmlTransient
@@ -192,6 +195,12 @@ public class ImportItem {
 
 	public void setImportEndDate(Instant importEndDate) {
 		this.importEndDate = importEndDate;
+		
+		// compute import speed
+		long totalPointSent = numberOfSuccess + numberOfFailed;
+		Duration ingestionDuration = Duration.between(importStartDate, importEndDate);
+		
+		importSpeed = (float) totalPointSent / (float) ingestionDuration.toMillis() * 1000F ;
 	}
 
 	public long getNumberOfSuccess() {
@@ -213,5 +222,16 @@ public class ImportItem {
 	public ImportSession getSession() {
 		return this.importSession;
 	}
-	
+
+	public float getImportSpeed() {
+		return importSpeed;
+	}
+
+	public long getPointsRead() {
+		return pointsRead;
+	}
+
+	public void setPointsRead(long pointsRead) {
+		this.pointsRead = pointsRead;
+	}
 }

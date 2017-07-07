@@ -135,15 +135,18 @@ public class ImportSessionIngester implements Runnable {
 	 */
 	public void run() {
 		
+		
+		// Management of 'a posteriori' robustness.
+		// Do a cleaning pass in the items lists for sessions that were aborted
+		session.setStatus(ImportStatus.CLEANSING_PASSES);
+		itemsImportedCleaningPass();
+		itemsToImportCleaningPass();
+		session.setStatus(ImportStatus.RUNNING);
+
 		// Prepare the stats 
 		session.getStats().timestampIngestion(true);
 		session.setStartDate(session.getStats().getDateIngestionStarted());
 		
-		// Management of 'a posteriori' robustness.
-		// Do a cleaning pass in the items lists for sessions that were aborted
-		itemsImportedCleaningPass();
-		itemsToImportCleaningPass();
-
 		// Launch import results analyser thread
 		logger.info("Starting ingestion of {} items for dataset {}", session.getItemsToImport().size(), session.getDataset());
 	    
@@ -493,6 +496,9 @@ public class ImportSessionIngester implements Runnable {
 				importItem.setItemInError();
 				break;
 			}
+			
+			// Update stats
+			session.getStats().updateStats(importItem);
 		}
 
 	} // End class ImportItemAnalyserThread
