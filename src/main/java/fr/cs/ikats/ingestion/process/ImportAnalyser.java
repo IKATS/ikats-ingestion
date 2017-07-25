@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.FileSystems;
+import java.nio.file.FileVisitOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -122,7 +123,7 @@ public class ImportAnalyser implements Runnable {
 		// walk the tree directories to prepare the CSV files
 		// Code base from http://rosettacode.org/wiki/Walk_a_directory/Recursively#Java
 		try {
-			Files.walk(datasetRoot)
+			Files.walk(datasetRoot, FileVisitOption.FOLLOW_LINKS)
 				 .filter( path -> path.toFile().isFile() )
 				 .forEach( path -> createImportSessionItem(path.toFile()) );
 			
