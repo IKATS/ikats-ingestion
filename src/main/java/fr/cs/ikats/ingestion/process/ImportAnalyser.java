@@ -7,6 +7,8 @@ import java.nio.file.FileSystems;
 import java.nio.file.FileVisitOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -176,6 +178,11 @@ public class ImportAnalyser implements Runnable {
 				tagsMap.put(tagName, matcher.group(tagName));
 			}
 		}
+
+		// Add the current date as tag to make difference with any previous TS containing the same data
+		// This allows to have the desired FID even if the TS already exists
+		String date = new SimpleDateFormat("yyyy.MM.dd.HH.mm.ss").format(new Date());
+		tagsMap.put("date", date);
 		
 		item.setTags(tagsMap);
 		item.setMetric(matcher.group(config.getString(IngestionConfig.METRIC_REGEX_GROUPNAME)));
