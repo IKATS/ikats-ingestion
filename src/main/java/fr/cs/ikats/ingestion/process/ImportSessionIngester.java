@@ -581,10 +581,12 @@ public class ImportSessionIngester implements Runnable {
 					// and it is not the same...
 					logger.warn("The TSUID {} is already registered with Functional Identifier '{}' but the current calculated is '{}'. Keeping the old one.",
 							importItem.getTsuid(), existingTSUID.getFuncId(), importItem.getFuncId());
+					importItem.addError("Existing funcId '" + existingTSUID.getFuncId() + "' for the current tsuid. The new calculated FuncId is overriden. Was '" + importItem.getFuncId() + "'" );
 					importItem.setFuncId(existingTSUID.getFuncId());
 				} 
 				else {
-					
+					// Do nothing
+				    logger.trace ("A pair TSUID/FuncId was already registered for the values {}/{}", importItem.getTsuid(), importItem.getFuncId());
 				}
 			}
 		}
