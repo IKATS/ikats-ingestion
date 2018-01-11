@@ -575,19 +575,25 @@ public class ImportSessionIngester implements Runnable {
 				}
 			} 
 			else {
-				// Test whether database hold a FuncId with the same TSUID
-				FunctionalIdentifier existingTSUID = metaDataFacade.getFunctionalIdentifierByTsuid(importItem.getTsuid());
-				if (existingTSUID != null && ! existingTSUID.getFuncId().equals(importItem.getFuncId())) {
-					// and it is not the same...
-					logger.warn("The TSUID {} is already registered with Functional Identifier '{}' but the current calculated is '{}'. Keeping the old one.",
-							importItem.getTsuid(), existingTSUID.getFuncId(), importItem.getFuncId());
-					importItem.addError("Existing funcId '" + existingTSUID.getFuncId() + "' for the current tsuid. The new calculated FuncId is overriden. Was '" + importItem.getFuncId() + "'" );
-					importItem.setFuncId(existingTSUID.getFuncId());
-				} 
-				else {
-					// Do nothing
-				    logger.trace ("A pair TSUID/FuncId was already registered for the values {}/{}", importItem.getTsuid(), importItem.getFuncId());
-				}
+				try {
+                    // Test whether database hold a FuncId with the same TSUID
+                    FunctionalIdentifier existingTSUID = metaDataFacade.getFunctionalIdentifierByTsuid(importItem.getTsuid());
+                    if (existingTSUID != null && ! existingTSUID.getFuncId().equals(importItem.getFuncId())) {
+                    	// and it is not the same...
+                    	logger.warn("The TSUID {} is already registered with Functional Identifier '{}' but the current calculated is '{}'. Keeping the old one.",
+                    			importItem.getTsuid(), existingTSUID.getFuncId(), importItem.getFuncId());
+                    	importItem.addError("Existing funcId '" + existingTSUID.getFuncId() + "' for the current tsuid. The new calculated FuncId is overriden. Was '" + importItem.getFuncId() + "'" );
+                    	importItem.setFuncId(existingTSUID.getFuncId());
+                    } 
+                    else {
+                    	// Do nothing
+                        logger.trace ("A pair TSUID/FuncId was already registered for the values {}/{}", importItem.getTsuid(), importItem.getFuncId());
+                    }
+                }
+                catch (IkatsDaoException e) {
+                    // Hazardous error
+                    logger.error("Database error when checking FuncId by TSUID", e);
+                }
 			}
 		}
 		catch (IkatsDaoException e) {

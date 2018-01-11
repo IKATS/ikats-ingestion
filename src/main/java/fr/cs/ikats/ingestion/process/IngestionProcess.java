@@ -8,7 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import fr.cs.ikats.common.dao.exception.IkatsDaoException;
-import fr.cs.ikats.common.dao.exception.IkatsDaoMissingRessource;
+import fr.cs.ikats.common.dao.exception.IkatsDaoMissingResource;
 import fr.cs.ikats.ingestion.exception.IngestionException;
 import fr.cs.ikats.ingestion.model.ImportSession;
 import fr.cs.ikats.ingestion.model.ImportStatus;
@@ -192,7 +192,7 @@ public class IngestionProcess implements Runnable {
 		// Review#147170 attention effet de bord FIXME: IkatsDaoMissingRessource est associée à un handler d'erreur pour les codes
 		// Review#147170 de retour Rest: si on retourne null il faudra corriger les services Rest impactés ...
 		// Review#147170 sinon: faire un service hasDataset(...) sur la facade ? 
-		catch (IkatsDaoMissingRessource e) {
+		catch (IkatsDaoMissingResource e) {
 			try {
 				// register only if the dataset doesn't exists in database
 				dataSetFacade.persistDataSet(session.getDataset(), session.getDescription(), new ArrayList<String>(0));

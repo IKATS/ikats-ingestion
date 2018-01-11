@@ -327,7 +327,7 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 			String apiUrl = (String) config.getProperty(ConfigProps.OPENTSDB_API_URL); 
 			String url = apiUrl
 			        + urlBuilder.generateMetricQueryUrl(metric, tagSb.toString(), "sum", null, null, Long.toString(startDate), Long.toString(startDate+1), "show_tsuids");
-			Response webResponse = RequestSender.sendGETRequest(url, null);
+			Response webResponse = RequestSender.sendGETRequest(url);
 			String str = webResponse.readEntity(String.class);
 			logger.trace("GET TSUID response : " + str);
 			
