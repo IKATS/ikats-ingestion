@@ -14,12 +14,12 @@
         <property name="show_sql">false</property>
         
         
-        <property name="c3p0.acquire_increment">1</property>   
-        <property name="c3p0.idle_test_period">50</property> <!-- seconds -->   
-        <property name="c3p0.max_size">10</property>   
-        <property name="c3p0.max_statements">0</property>   
-        <property name="c3p0.min_size">2</property>   
-        <property name="c3p0.timeout">100</property>
+        <property name="hibernate.c3p0.acquire_increment">1</property>   
+        <property name="hibernate.c3p0.idle_test_period">50</property> <!-- seconds -->   
+        <property name="hibernate.c3p0.max_size">10</property>   
+        <property name="hibernate.c3p0.max_statements">0</property>   
+        <property name="hibernate.c3p0.min_size">2</property>   
+        <property name="hibernate.c3p0.timeout">100</property>
 		<mapping class="fr.cs.ikats.metadata.model.FunctionalIdentifier" />
         
     </session-factory>
