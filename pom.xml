@@ -13,7 +13,7 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<jersey.version>2.23.2</jersey.version>
 		<jackson.version>2.8.4</jackson.version>
-		<powermock.version>1.6.5</powermock.version>
+		<powermock.version>2.0.0-beta.5</powermock.version>
 	</properties>
 
 	<profiles>
@@ -191,52 +191,19 @@
 		</plugins>
 	</build>
 
-	<dependencyManagement>
-		<dependencies>
-			<dependency>
-				<groupId>org.glassfish.jersey</groupId>
-				<artifactId>jersey-bom</artifactId>
-				<version>${jersey.version}</version>
-				<type>pom</type>
-				<scope>import</scope>
-			</dependency>
-		</dependencies>
-	</dependencyManagement>
-
 	<dependencies>
 		<dependency>
-			<groupId>org.apache.openejb</groupId>
+			<groupId>javax</groupId>
 			<artifactId>javaee-api</artifactId>
-			<version>7.0-SNAPSHOT</version>
+			<version>7.0</version>
 			<scope>provided</scope>
 		</dependency>
 
-		<dependency>
-			<groupId>org.glassfish.jersey.containers</groupId>
-			<artifactId>jersey-container-servlet-core</artifactId>
-			<!-- Supplied by dependencyManagement -->
-			<!-- <version>2.23.2</version> -->
-			<scope>provided</scope>
-		</dependency>
-
-		<dependency>
-			<groupId>org.glassfish.jersey.core</groupId>
-			<artifactId>jersey-server</artifactId>
-			<!-- Supplied by dependencyManagement -->
-			<!-- <version>2.23.2</version> -->
-			<!-- <scope>provided</scope> -->
-		</dependency>
 		<dependency>
 			<groupId>javax.ejb</groupId>
 			<artifactId>javax.ejb-api</artifactId>
 			<version>3.2</version>
 			<scope>provided</scope>
-		</dependency>
-
-		<dependency>
-			<groupId>org.glassfish.jaxb</groupId>
-			<artifactId>jaxb-runtime</artifactId>
-			<version>2.2.11</version>
 		</dependency>
 
 		<!-- Logging -->
@@ -301,31 +268,25 @@
 		</dependency>
 
 		<dependency>
-			<groupId>java.fr.cs.ikats</groupId>
+			<groupId>fr.cs.ikats</groupId>
 			<artifactId>db-web-client</artifactId>
 			<version>0.0.1-SNAPSHOT</version>
 		</dependency>
 
 		<dependency>
 			<groupId>fr.cs.ikats</groupId>
-			<artifactId>metadata-database</artifactId>
+			<artifactId>ikats-datamodel</artifactId>
 			<version>0.0.1-SNAPSHOT</version>
 			<exclusions>
 				<exclusion>
 					<groupId>org.slf4j</groupId>
 					<artifactId>slf4j-log4j12</artifactId>
 				</exclusion>
-			</exclusions>
-		</dependency>
-
-		<dependency>
-			<groupId>fr.cs.ikats</groupId>
-			<artifactId>dataset-database</artifactId>
-			<version>0.0.1-SNAPSHOT</version>
-			<exclusions>
+				<!-- Due to org.apache.openejb.OpenEjbContainer$InitializationException: java.lang.IllegalArgumentException -->
+				<!-- Remove that transitive dependency -->
 				<exclusion>
-					<groupId>org.slf4j</groupId>
-					<artifactId>slf4j-log4j12</artifactId>
+					<groupId>javax.transaction</groupId>
+					<artifactId>jta</artifactId>
 				</exclusion>
 			</exclusions>
 		</dependency>
@@ -355,9 +316,9 @@
 		<!-- The <scope>test</scope> guarantees that non of your runtime code is 
 			dependent on any OpenEJB classes. -->
 		<dependency>
-			<groupId>org.apache.openejb</groupId>
+			<groupId>org.apache.tomee</groupId>
 			<artifactId>openejb-core</artifactId>
-			<version>5.0.0-SNAPSHOT</version>
+			<version>7.0.4</version>
 			<scope>test</scope>
 			<exclusions>
 				<!-- Superseed by use in commons-configuration2 -->
