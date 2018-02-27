@@ -29,9 +29,8 @@ RUN mvn clean install -DskipTests=true -f ikats-datamodel/pom.xml
 ## Step 2 -- Build the IKATS Ingestion app
 COPY pom.xml .
 RUN mvn -B -e -C -T 1C org.apache.maven.plugins:maven-dependency-plugin:3.0.2:go-offline --fail-never
-#RUN mvn -B -e -o -T 1C verify
 
-COPY src .
+COPY src src
 RUN mvn -B -e -o -T 1C clean package -DskipTests=true
 
 #
@@ -41,6 +40,10 @@ RUN mvn -B -e -o -T 1C clean package -DskipTests=true
 # Flavor : 8-jdk-7.0.1-plume (8-jdk-7.0.1-plume/Dockerfile)
 
 FROM openjdk:8
+
+# install zip in order to repack war after configuration injection
+RUN apt-get update && apt-get install -y --no-install-recommends zip \
+	&& rm -rf /var/lib/apt/lists/*
 
 ENV PATH /usr/local/tomee/bin:$PATH
 RUN mkdir -p /usr/local/tomee
@@ -65,17 +68,18 @@ RUN set -x \
 COPY assets/tomee-conf/. .
 
 # Reclaim the war package at the previous multi-stage
-COPY --from=war-build /srcs/target/ikats-ingestion.war webapps/.
+COPY --from=war-build /usr/src/app/target/ikats-ingestion.war webapps/.
 
 WORKDIR /tmp/container_init
-COPY assets/inject_configuration.sh .
-
-RUN inject_configuration.sh /usr/local/tomcee/webapps/ikats-ingestion.war
+COPY assets .
 
 # Declare a shared volume
 VOLUME ["/mnt/IKATSDATA"]
 
-# Expose functional and debug ports, then run
+# Expose functional and debug ports
 EXPOSE 8081 9010 9011
-CMD ["catalina.sh", "jpda", "run"]
+
+# Run a script to replace target dependent values into the templated war configuration
+# and launch the Tomcat
+ENTRYPOINT ["sh", "container_init.sh"]
 
