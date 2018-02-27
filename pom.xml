@@ -1,338 +1,247 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-	<modelVersion>4.0.0</modelVersion>
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
 
-	<groupId>fr.cs.ikats</groupId>
-	<artifactId>ikats-ingestion</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
-	<name>ikats-ingestion</name>
-	<description>Data import management into IKATS</description>
-	<packaging>war</packaging>
+    <groupId>fr.cs.ikats</groupId>
+    <artifactId>ikats-ingestion</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>ikats-ingestion</name>
+    <description>Data import management into IKATS</description>
+    <packaging>war</packaging>
 
-	<properties>
-		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<jersey.version>2.23.2</jersey.version>
-		<jackson.version>2.8.4</jackson.version>
-		<powermock.version>2.0.0-beta.5</powermock.version>
-	</properties>
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <jersey.version>2.23.2</jersey.version>
+        <jackson.version>2.8.4</jackson.version>
+        <powermock.version>2.0.0-beta.5</powermock.version>
+    </properties>
 
-	<profiles>
-		<!-- The Configuration of the development profile -->
-		<profile>
-			<id>dev</id>
-			<activation>
-				<activeByDefault>true</activeByDefault>
-			</activation>
-			<properties>
-				<!-- Specifies the build.profile.id property that must be equal than 
-					the name of the directory that contains the profile specific configuration 
-					file. Because the name of the directory that contains the configuration file 
-					of the development profile is dev, we must set the value of the build.profile.id 
-					property to dev. -->
-				<build.profile.id>dev</build.profile.id>
-				<!-- Only unit tests are run when the development profile is active -->
-				<skip.integration.tests>true</skip.integration.tests>
-				<skip.system.tests>true</skip.system.tests>
-				<skip.unit.tests>false</skip.unit.tests>
-			</properties>
-		</profile>
-		<!-- The Configuration of the integration-test profile -->
-		<profile>
-			<id>integration-test</id>
-			<properties>
-				<build.profile.id>integration-test</build.profile.id>
-				<skip.integration.tests>false</skip.integration.tests>
-				<skip.system.tests>true</skip.system.tests>
-				<skip.unit.tests>true</skip.unit.tests>
-			</properties>
-		</profile>
-		<!-- The Configuration of the system-test profile -->
-		<profile>
-			<id>system-test</id>
-			<properties>
-				<build.profile.id>system-test</build.profile.id>
-				<skip.integration.tests>false</skip.integration.tests>
-				<skip.system.tests>false</skip.system.tests>
-				<skip.unit.tests>true</skip.unit.tests>
-			</properties>
-		</profile>
-		<profile>
-			<id>int-target</id>
-			<properties>
-				<deploy-server.host>172.28.15.84</deploy-server.host>
-				<deploy-server.port>8181</deploy-server.port>
-			</properties>
-		</profile>
-		<profile>
-			<id>int-b-target</id>
-			<properties>
-				<deploy-server.host>172.28.15.14</deploy-server.host>
-				<deploy-server.port>8181</deploy-server.port>
-			</properties>
-		</profile>
-		<profile>
-			<id>preprod-target</id>
-			<properties>
-				<deploy-server.host>172.28.15.89</deploy-server.host>
-				<deploy-server.port>8181</deploy-server.port>
-			</properties>
-		</profile>
-		<profile>
-			<id>local-container-target</id>
-			<properties>
-				<deploy-server.host>127.0.0.1</deploy-server.host>
-				<deploy-server.port>8081</deploy-server.port>
-			</properties>
-		</profile>
-	</profiles>
+    <build>
+        <finalName>${project.artifactId}</finalName>
 
-	<build>
-		<finalName>${project.artifactId}</finalName>
+        <plugins>
+            <!-- Configure the build paths -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.0.0</version>
+                <executions>
+                    <!-- Add a new sources and resources directory to our build for integration
+                        and system tests -->
+                    <execution>
+                        <id>add-integration-test-sources</id>
+                        <phase>generate-test-sources</phase>
+                        <goals>
+                            <goal>add-test-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>src/integration-test/java</source>
+                                <source>src/system-test/java</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>add-integration-test-resources</id>
+                        <phase>generate-test-resources</phase>
+                        <goals>
+                            <goal>add-test-resource</goal>
+                        </goals>
+                        <configuration>
+                            <resources>
+                                <resource>
+                                    <directory>src/integration-test/resources</directory>
+                                </resource>
+                                <resource>
+                                    <directory>src/system-test/resources</directory>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
 
-		<plugins>
-		    <!-- Configure the build paths -->
-			<plugin>
-				<groupId>org.codehaus.mojo</groupId>
-				<artifactId>build-helper-maven-plugin</artifactId>
-				<version>3.0.0</version>
-				<executions>
-					<!-- Add a new sources and resources directory to our build for integration 
-						and system tests -->
-					<execution>
-						<id>add-integration-test-sources</id>
-						<phase>generate-test-sources</phase>
-						<goals>
-							<goal>add-test-source</goal>
-						</goals>
-						<configuration>
-							<sources>
-								<source>src/integration-test/java</source>
-								<source>src/system-test/java</source>
-							</sources>
-						</configuration>
-					</execution>
-					<execution>
-						<id>add-integration-test-resources</id>
-						<phase>generate-test-resources</phase>
-						<goals>
-							<goal>add-test-resource</goal>
-						</goals>
-						<configuration>
-							<resources>
-								<resource>
-									<directory>src/integration-test/resources</directory>
-								</resource>
-								<resource>
-									<directory>src/system-test/resources</directory>
-								</resource>
-							</resources>
-						</configuration>
-					</execution>
-					<!-- Build the war by copying the $target environment passed when running mvn -Dtarget=xxx
-					/!\ TODO a modifier dans une future itération pour permettre de construire un WAR unique pour tous les environnements
-					Et selectionner l'environement au runtime.
-					A lire : 
-					- https://dzone.com/articles/maven-profile-best-practices et ses renois
-					- http://stackoverflow.com/questions/13956651/externalizing-tomcat-webapp-config-from-war-file/26146742#26146742
-					 -->
-					<execution>
-						<id>add-target-environment-resources</id>
-						<phase>generate-resources</phase>
-						<goals>
-							<goal>add-resource</goal>
-						</goals>
-						<configuration>
-							<resources>
-								<resource>
-									<directory>environment/${target}</directory>
-								</resource>
-							</resources>
-						</configuration>
-					</execution>
-				</executions>
-			</plugin>
+            <!--Compile the sources -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.1</version>
+                <configuration>
+                    <source>1.8</source>
+                    <target>1.8</target>
+                </configuration>
+            </plugin>
 
-			<!--Compile the sources -->
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-compiler-plugin</artifactId>
-				<version>3.1</version>
-				<configuration>
-					<source>1.8</source>
-					<target>1.8</target>
-				</configuration>
-			</plugin>
+            <!-- Build the WAR -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-war-plugin</artifactId>
+                <version>3.0.0</version>
+                <configuration>
+                    <failOnMissingWebXml>false</failOnMissingWebXml>
+                </configuration>
+            </plugin>
 
-			<!-- Build the WAR -->
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-war-plugin</artifactId>
-				<version>3.0.0</version>
-				<configuration>
-					<failOnMissingWebXml>false</failOnMissingWebXml>
-				</configuration>
-			</plugin>
+            <!-- Deploy the artifact -->
+            <plugin>
+                <groupId>org.apache.tomcat.maven</groupId>
+                <artifactId>tomcat7-maven-plugin</artifactId>
+                <version>2.2</version>
+                <configuration>
+                    <url>http://${deploy-server.host}:${deploy-server.port}/manager/text</url>
+                    <path>/${project.name}</path>
+                    <warFile>target/${project.name}.war</warFile>
+                    <update>true</update>
+                    <username>deployer</username>
+                    <password>deployer</password>
+                </configuration>
+            </plugin>
 
-			<!-- Deploy the artifact -->
-			<plugin>
-				<groupId>org.apache.tomcat.maven</groupId>
-				<artifactId>tomcat7-maven-plugin</artifactId>
-				<version>2.2</version>
-				<configuration>
-					<url>http://${deploy-server.host}:${deploy-server.port}/manager/text</url>
-					<path>/${project.name}</path>
-					<warFile>target/${project.name}.war</warFile>
-					<update>true</update>
-					<username>deployer</username>
-					<password>deployer</password>
-				</configuration>
-			</plugin>
+        </plugins>
+    </build>
 
-		</plugins>
-	</build>
+    <dependencies>
+        <dependency>
+            <groupId>javax</groupId>
+            <artifactId>javaee-api</artifactId>
+            <version>7.0</version>
+            <scope>provided</scope>
+        </dependency>
 
-	<dependencies>
-		<dependency>
-			<groupId>javax</groupId>
-			<artifactId>javaee-api</artifactId>
-			<version>7.0</version>
-			<scope>provided</scope>
-		</dependency>
+        <dependency>
+            <groupId>javax.ejb</groupId>
+            <artifactId>javax.ejb-api</artifactId>
+            <version>3.2</version>
+            <scope>provided</scope>
+        </dependency>
 
-		<dependency>
-			<groupId>javax.ejb</groupId>
-			<artifactId>javax.ejb-api</artifactId>
-			<version>3.2</version>
-			<scope>provided</scope>
-		</dependency>
+        <!-- Logging -->
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>1.2.3</version>
+        </dependency>
 
-		<!-- Logging -->
-		<dependency>
-			<groupId>ch.qos.logback</groupId>
-			<artifactId>logback-classic</artifactId>
-			<version>1.2.3</version>
-		</dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-core</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.jaxrs</groupId>
+            <artifactId>jackson-jaxrs-json-provider</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
 
-		<dependency>
-			<groupId>com.fasterxml.jackson.core</groupId>
-			<artifactId>jackson-core</artifactId>
-			<version>${jackson.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>com.fasterxml.jackson.core</groupId>
-			<artifactId>jackson-annotations</artifactId>
-			<version>${jackson.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>com.fasterxml.jackson.core</groupId>
-			<artifactId>jackson-databind</artifactId>
-			<version>${jackson.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>com.fasterxml.jackson.jaxrs</groupId>
-			<artifactId>jackson-jaxrs-json-provider</artifactId>
-			<version>${jackson.version}</version>
-		</dependency>
+        <dependency>
+            <groupId>javax.enterprise.concurrent</groupId>
+            <artifactId>javax.enterprise.concurrent-api</artifactId>
+            <version>1.0</version>
+            <scope>provided</scope>
+        </dependency>
 
-		<dependency>
-			<groupId>javax.enterprise.concurrent</groupId>
-			<artifactId>javax.enterprise.concurrent-api</artifactId>
-			<version>1.0</version>
-			<scope>provided</scope>
-		</dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+            <version>3.5</version>
+        </dependency>
 
-		<dependency>
-			<groupId>org.apache.commons</groupId>
-			<artifactId>commons-lang3</artifactId>
-			<version>3.5</version>
-		</dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>42.0.0</version>
+        </dependency>
 
-		<dependency>
-			<groupId>org.postgresql</groupId>
-			<artifactId>postgresql</artifactId>
-			<version>42.0.0</version>
-		</dependency>
+        <dependency>
+            <groupId>com.migesok</groupId>
+            <artifactId>jaxb-java-time-adapters</artifactId>
+            <version>1.1.3</version>
+        </dependency>
 
-		<dependency>
-			<groupId>com.migesok</groupId>
-			<artifactId>jaxb-java-time-adapters</artifactId>
-			<version>1.1.3</version>
-		</dependency>
-	
-		<!-- IKATS Project internal dependencies -->
+        <!-- IKATS Project internal dependencies -->
 
-		<dependency>
-			<groupId>fr.cs.ikats</groupId>
-			<artifactId>ikats-commons</artifactId>
-			<version>0.0.1-SNAPSHOT</version>
-		</dependency>
+        <dependency>
+            <groupId>fr.cs.ikats</groupId>
+            <artifactId>ikats-commons</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+        </dependency>
 
-		<dependency>
-			<groupId>fr.cs.ikats</groupId>
-			<artifactId>db-web-client</artifactId>
-			<version>0.0.1-SNAPSHOT</version>
-		</dependency>
+        <dependency>
+            <groupId>fr.cs.ikats</groupId>
+            <artifactId>db-web-client</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+        </dependency>
 
-		<dependency>
-			<groupId>fr.cs.ikats</groupId>
-			<artifactId>ikats-datamodel</artifactId>
-			<version>0.0.1-SNAPSHOT</version>
-			<exclusions>
-				<exclusion>
-					<groupId>org.slf4j</groupId>
-					<artifactId>slf4j-log4j12</artifactId>
-				</exclusion>
-				<!-- Due to org.apache.openejb.OpenEjbContainer$InitializationException: java.lang.IllegalArgumentException -->
-				<!-- Remove that transitive dependency -->
-				<exclusion>
-					<groupId>javax.transaction</groupId>
-					<artifactId>jta</artifactId>
-				</exclusion>
-			</exclusions>
-		</dependency>
+        <dependency>
+            <groupId>fr.cs.ikats</groupId>
+            <artifactId>ikats-datamodel</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-log4j12</artifactId>
+                </exclusion>
+                <!-- Due to org.apache.openejb.OpenEjbContainer$InitializationException: java.lang.IllegalArgumentException -->
+                <!-- Remove that transitive dependency -->
+                <exclusion>
+                    <groupId>javax.transaction</groupId>
+                    <artifactId>jta</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
 
-		<!-- Mock frameworks for Unit Tests -->
-		<dependency>
-			<groupId>junit</groupId>
-			<artifactId>junit</artifactId>
-			<version>4.11</version>
-			<scope>test</scope>
-		</dependency>
+        <!-- Mock frameworks for Unit Tests -->
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.11</version>
+            <scope>test</scope>
+        </dependency>
 
-		<dependency>
-			<groupId>org.powermock</groupId>
-			<artifactId>powermock-module-junit4</artifactId>
-			<version>${powermock.version}</version>
-			<scope>test</scope>
-		</dependency>
-		
-		<dependency>
-			<groupId>org.powermock</groupId>
-			<artifactId>powermock-api-mockito2</artifactId>
-			<version>${powermock.version}</version>
-			<scope>test</scope>
-		</dependency>
+        <dependency>
+            <groupId>org.powermock</groupId>
+            <artifactId>powermock-module-junit4</artifactId>
+            <version>${powermock.version}</version>
+            <scope>test</scope>
+        </dependency>
 
-		<!-- The <scope>test</scope> guarantees that non of your runtime code is 
-			dependent on any OpenEJB classes. -->
-		<dependency>
-			<groupId>org.apache.tomee</groupId>
-			<artifactId>openejb-core</artifactId>
-			<version>7.0.4</version>
-			<scope>test</scope>
-			<exclusions>
-				<!-- Superseed by use in commons-configuration2 -->
-				<exclusion>
-					<groupId>commons-beanutils</groupId>
-					<artifactId>commons-beanutils-core</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.hsqldb</groupId>
-					<artifactId>hsqldb</artifactId>
-				</exclusion>
-			</exclusions>
-		</dependency>
+        <dependency>
+            <groupId>org.powermock</groupId>
+            <artifactId>powermock-api-mockito2</artifactId>
+            <version>${powermock.version}</version>
+            <scope>test</scope>
+        </dependency>
 
-	</dependencies>
+        <!-- The <scope>test</scope> guarantees that non of your runtime code is
+            dependent on any OpenEJB classes. -->
+        <dependency>
+            <groupId>org.apache.tomee</groupId>
+            <artifactId>openejb-core</artifactId>
+            <version>7.0.4</version>
+            <scope>test</scope>
+            <exclusions>
+                <!-- Superseed by use in commons-configuration2 -->
+                <exclusion>
+                    <groupId>commons-beanutils</groupId>
+                    <artifactId>commons-beanutils-core</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.hsqldb</groupId>
+                    <artifactId>hsqldb</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+    </dependencies>
 
 </project>
