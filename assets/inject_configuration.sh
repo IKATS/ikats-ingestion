@@ -17,11 +17,12 @@ test_for_variable() {
 replace_variable_in() {
   #Usage: replace_variable_in VARIABLE_NAME file1 file2 ...
   vname=$1
-  if test $vname -eq 'TSDB_WRITE_HOST'
+  echo "vname : " $vname
+  if [ "$vname" = "TSDB_WRITE_HOST" ]
   then
-    eval "vvalue = `grep -m 1 opentsdb_write /etc/hosts |cut -f1 -d$'\t'`"
+    eval "vvalue=`grep -m 1 opentsdb_write /etc/hosts |sed 's/^\([0-9.]*\).*$/\1/'`"
   else
-  eval "vvalue=\$$vname"
+    eval "vvalue=\$$vname"
   fi
 
   shift
