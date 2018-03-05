@@ -71,7 +71,8 @@ COPY assets/tomee-conf/. .
 COPY --from=war-build /usr/src/app/target/ikats-ingestion.war webapps/.
 
 WORKDIR /tmp/container_init
-COPY assets .
+COPY assets/container_init.sh .
+COPY assets/inject_configuration.sh .
 
 # Declare a shared volume
 VOLUME ["/mnt/IKATSDATA"]
