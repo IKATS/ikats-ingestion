@@ -17,13 +17,7 @@ test_for_variable() {
 replace_variable_in() {
   #Usage: replace_variable_in VARIABLE_NAME file1 file2 ...
   vname=$1
-  echo "vname : " $vname
-  if [ "$vname" = "TSDB_WRITE_HOST" ]
-  then
-    eval "vvalue=`grep -m 1 opentsdb_write /etc/hosts |sed 's/^\([0-9.]*\).*$/\1/'`"
-  else
     eval "vvalue=\$$vname"
-  fi
 
   shift
   echo "Replace '{${vname}}' with '${vvalue}' in $@"
@@ -62,10 +56,10 @@ WAR_PATH=$1
 
 eval set -- "DB_HOST \
 	DB_PORT \
-	TSDB_HOST \
-	TSDB_PORT \
-    TSDB_WRITE_HOST \
-    TSDB_WRITE_PORT \
+	OPENTSDB_READ_HOST \
+	OPENTSDB_READ_PORT \
+    OPENTSDB_WRITE_HOST \
+    OPENTSDB_WRITE_PORT \
 	C3P0_ACQUIRE_INCREMENT \
 	C3P0_MAX_SIZE \
 	C3P0_IDLE_TEST_PERIOD \
