@@ -4,4 +4,5 @@ set -e
 
 sh inject_configuration.sh /usr/local/tomee/webapps/ikats-ingestion.war
 
-exec catalina.sh run
+# Launch TomEE with JPDA debugging activated if REMOTE_DEBUG is set
+exec catalina.sh ${REMOTE_DEBUG:+jpda} run
