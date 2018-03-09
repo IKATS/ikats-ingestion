@@ -11,6 +11,7 @@ import java.util.regex.Pattern;
 import javax.ejb.embeddable.EJBContainer;
 import javax.naming.NamingException;
 
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -30,6 +31,7 @@ public class ImportAnalyserTest {
 
 	/** Example of Regex for the "pathPattern" in the case of EDF Dataset */
 	public final static String EDF_PATH_PATTERN = "\\/DAR\\/(?<equipement>\\w*)\\/(?<metric>.*?)(?:_(?<good>bad|good))?\\.csv";
+	private static EJBContainer ejbContainer;
 	
 	/***
      * Méthode d'initialisation appelée une seule fois lors de l'exécution
@@ -39,10 +41,18 @@ public class ImportAnalyserTest {
      * @throws NamingException
      */
     @BeforeClass
-    public static void init() throws NamingException {
-        EJBContainer.createEJBContainer();
+    public static void setUpClass() throws NamingException {
+        ejbContainer = EJBContainer.createEJBContainer();
     }
-	
+    
+    @AfterClass
+    public static void tearDownClass() throws NamingException {
+    	if (ejbContainer != null) {
+    		ejbContainer.getContext().close();
+    		ejbContainer.close();
+		} 
+    }
+   
 	@Test
 	public void testAnalyserNominal() throws URISyntaxException, InterruptedException, IOException {
 		

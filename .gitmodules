@@ -1,0 +1,3 @@
+[submodule "ikats-datamodel"]
+	path = ikats-datamodel
+	url = https://tuleap-poc.si.c-s.fr/plugins/git/ikats-ops/ikats-datamodel.git

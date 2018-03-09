@@ -1,0 +1,24 @@
+<!DOCTYPE hibernate-configuration PUBLIC
+		"-//Hibernate/Hibernate Configuration DTD 3.0//EN"
+		"classpath://org/hibernate/hibernate-configuration-3.0.dtd">
+
+<hibernate-configuration>
+	<session-factory>
+		<property name="hibernate.dialect">org.hibernate.dialect.PostgreSQLDialect</property>
+		<property name="hibernate.connection.driver_class">org.postgresql.Driver</property>
+		<property name="hibernate.connection.username">ikats</property>
+		<property name="hibernate.connection.password">ikats</property>
+		<property name="hibernate.connection.url">jdbc:postgresql://{DB_HOST}:{DB_PORT}/ikats</property>
+		<property name="hbm2ddl.auto">update</property>
+		<property name="show_sql">true</property>
+
+
+		<property name="hibernate.c3p0.acquire_increment">{C3P0_ACQUIRE_INCREMENT}</property>
+		<property name="hibernate.c3p0.idle_test_period">{C3P0_IDLE_TEST_PERIOD}</property> <!-- seconds -->
+		<property name="hibernate.c3p0.max_size">{C3P0_MAX_SIZE}</property>
+		<property name="hibernate.c3p0.max_statements">{C3P0_MAX_STATEMENTS}</property>
+		<property name="hibernate.c3p0.min_size">{C3P0_MIN_SIZE}</property>
+		<property name="hibernate.c3p0.timeout">{C3P0_TIMEOUT}</property>
+
+	</session-factory>
+</hibernate-configuration>
