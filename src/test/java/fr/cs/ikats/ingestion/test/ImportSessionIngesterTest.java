@@ -10,6 +10,7 @@ import javax.naming.Context;
 import javax.naming.NamingException;
 
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -31,7 +32,7 @@ import fr.cs.ikats.util.concurrent.ExecutorPoolManager;
 @RunWith(PowerMockRunner.class)
 // Ignore standards framework classes and the IKATS class model in order to avoid PowerMock create objects and confusing Hibernate 
 @PowerMockIgnore({"com.sun.*", "java.lang.*", "javax.*", "org.*", "fr.cs.ikats.ts.*", "fr.cs.ikats.metadata.*"})
-@PrepareForTest(ImportSessionIngester.ImportItemAnalyserThread.class)
+@PrepareForTest(ImportSessionIngester.class)
 public class ImportSessionIngesterTest {
 
     private static EJBContainer ejbContainer;
@@ -50,7 +51,7 @@ public class ImportSessionIngesterTest {
      * @throws NamingException
      */
     @BeforeClass
-    public static void init() throws NamingException {
+    public static void setUpClass() throws NamingException {
     	// Start EJB Container
         ejbContainer = EJBContainer.createEJBContainer();
         
@@ -61,7 +62,14 @@ public class ImportSessionIngesterTest {
         executorPoolManager = (ExecutorPoolManager) ctx.lookup(executorPoolManagerServiceName);
     }
 	
-	
+    @AfterClass
+    public static void tearDownClass() throws NamingException {
+    	if (ejbContainer != null) {
+    		ejbContainer.getContext().close();
+    		ejbContainer.close();
+		} 
+    }
+    
 	@Before
 	public void setUp() throws Exception {
 	}
@@ -75,9 +83,9 @@ public class ImportSessionIngesterTest {
 	public void testRunThread() throws InterruptedException, ClassNotFoundException, InstantiationException, IllegalAccessException {
 		
 		// Mock : do not execute the following method during test
-		suppress(method(ImportSessionIngester.ImportItemAnalyserThread.class, "registerFunctionalIdent"));
-		suppress(method(ImportSessionIngester.ImportItemAnalyserThread.class, "registerMetadata"));
-		suppress(method(ImportSessionIngester.ImportItemAnalyserThread.class, "registerTsuidsInDataset"));
+		suppress(method(ImportSessionIngester.class, "registerFunctionalIdent", ImportItem.class));
+		suppress(method(ImportSessionIngester.class, "registerMetadata", ImportItem.class));
+		suppress(method(ImportSessionIngester.class, "registerItemInDataset", ImportItem.class));
 		
 		int nbItemsToImport = 10;
 		int nbItemsImported = 0;

@@ -419,7 +419,7 @@ public class ImportSessionIngester implements Runnable {
 							processImportItem(importItem);
 							
 						} catch (InterruptedException | ExecutionException e) {
-							// FIXME
+							// We need to catch the exceptions and do nothing because we are in a Thread and it should terminate failsafe.
 							logger.debug("Message: {}, cause: {}, {}", e.getMessage(), e.getCause(), e);
 						}
 						finally {
@@ -438,18 +438,28 @@ public class ImportSessionIngester implements Runnable {
 						break;
 					case SHUTINGDOWN:
 						// TODO implement test and timeout to check task that are not finished and reloop while tasks or timeout. 
-						if (submitedTasks.size() == 0) {
+						if (submitedTasks.isEmpty()) {
 							// let an ultimate chance for tasks to finish
 							state = ImportItemAnalyserState.LASTPASS;
 							logger.trace("Last pass in the loop"); 
 						}
+						// Not breaking here is intentional to reach the sleep()
 					case RUNNING:
+						if (state != ImportItemAnalyserState.SHUTINGDOWN 
+							&& (session.getStatus() == ImportStatus.COMPLETED
+								|| session.getStatus() == ImportStatus.CANCELLED
+								|| session.getStatus() == ImportStatus.ERROR)) {
+							// Shutdown the thread if the session has been stopped
+							state = ImportItemAnalyserState.SHUTINGDOWN;
+						}
+						// Not breaking here is intentional to reach the sleep()
 					default: // continue to loop
 						try {
 							// Wait a moment before looping again.
 							Thread.sleep(1000);
-						} catch (InterruptedException ie) {
-							// TODO manage error ?
+						} 
+						catch (InterruptedException ie) {
+							// We need to catch the InterruptedException and do nothing because we are in a Thread and it should terminate failsafe.
 							logger.warn("Interrupted while waiting", ie);
 						}
 				}

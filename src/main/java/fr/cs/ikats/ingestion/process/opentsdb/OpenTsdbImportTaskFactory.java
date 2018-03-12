@@ -152,11 +152,12 @@ public class OpenTsdbImportTaskFactory extends AbstractImportTaskFactory {
 			// } catch (IOException | DataManagerException | IkatsWebClientException e) {
 			catch (Exception | Error e) {
 				
-				// We need to catch all exceptions and errors because the thread status could not be managed otherwise.
+				// We need to catch all exceptions and errors because we are in a Task and the thread status could not be managed otherwise.
 				logger.error("Error while processing item {} for file {}", importItem.getFuncId(), importItem.getFile().toString());
 				
 				FormattingTuple arrayFormat = MessageFormatter.format("Exception: {} - Cause: {}", e.toString(), (e.getCause() == null) ? "null" : e.getCause().toString());
 				importItem.addError(arrayFormat.getMessage());
+				logger.error(arrayFormat.getMessage());
 				
 				// This is a non managed error: Cancel the item
 				importItem.setStatus(ImportStatus.CANCELLED);
