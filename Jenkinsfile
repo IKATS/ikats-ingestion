@@ -39,7 +39,7 @@ pipeline {
             agent { node { label 'docker' } }
             steps {
                 script {
-                    ingestModuleImage = docker.build("ikats-ingestion")
+                    ingestModuleImage = docker.build("ikats-ingestion", "--pull .")
 
                     fullBranchName = "${env.BRANCH_NAME}"
                     branchName = fullBranchName.substring(fullBranchName.lastIndexOf("/") + 1)
