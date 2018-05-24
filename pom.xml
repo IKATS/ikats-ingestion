@@ -116,6 +116,27 @@
                 <configuration>
                     <failOnMissingWebXml>false</failOnMissingWebXml>
                 </configuration>
+                <executions>
+                    <execution>
+                        <id>default-war</id>
+                        <goals>
+                            <goal>war</goal>
+                        </goals>
+                        <phase>package</phase>
+                        <configuration>
+                            <webResources>
+                                <resource>
+                                   <directory>${project.basedir}</directory>
+                                   <targetPath>META-INF</targetPath>
+                                   <includes>
+                                       <include>LICENSE</include>
+                                       <include>NOTICE</include>
+                                   </includes>
+                                </resource>
+                            </webResources>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
 
             <!-- Deploy the artifact -->
