@@ -30,6 +30,8 @@ RUN mvn clean install -DskipTests=true -f ikats-datamodel/pom.xml
 COPY pom.xml .
 RUN mvn -B -e -C -T 1C org.apache.maven.plugins:maven-dependency-plugin:3.0.2:go-offline --fail-never
 
+COPY LICENSE .
+COPY NOTICE .
 COPY src src
 RUN mvn -B -e -o -T 1C clean package -DskipTests=true
 

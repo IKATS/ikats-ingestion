@@ -1,3 +1,19 @@
+/**
+ * Copyright 2018 CS Systèmes d'Information
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package fr.cs.ikats.util;
 
 import java.lang.reflect.InvocationTargetException;
@@ -14,7 +30,6 @@ public class RegExUtils {
 	/**
 	 * Get the groups names from the string pattern<br>
 	 * 
-	 * @author nhahtdh the
 	 *         <a href="http://stackoverflow.com/a/15588989">Accepted answer to
 	 *         "Get group names in java regex"</a>
 	 * @param regex
@@ -41,7 +56,6 @@ public class RegExUtils {
 	 * <a href="http://docs.oracle.com/javase/tutorial/reflect/index.html">its
 	 * drawbacks</a>
 	 * 
-	 * @author nhahtdh in the
 	 *         <a href="http://stackoverflow.com/a/15596145">second voted answer
 	 *         to "Get group names in java regex"</a>
 	 * @param regex

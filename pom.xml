@@ -9,6 +9,13 @@
     <description>Data import management into IKATS</description>
     <packaging>war</packaging>
 
+    <licenses>
+        <license>
+            <name>The Apache Software License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+        </license>
+    </licenses>
+
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <jersey.version>2.23.2</jersey.version>
@@ -20,6 +27,35 @@
         <finalName>${project.artifactId}</finalName>
 
         <plugins>
+
+            <!-- generate third-party licenses list in target/generated-sources/license/THIRD-PARTY.txt -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>license-maven-plugin</artifactId>
+                <version>1.16</version>
+                <executions>
+                    <execution>
+                        <!-- Used in command line to generate the third-party licences file :  
+                             mvn license:aggregate-add-third-party@aatp-config -DskipTests=true -->
+                        <id>atp-config</id>
+                        <configuration>
+                            <acceptPomPackaging>true</acceptPomPackaging>
+                            <thirdPartyFilename>NOTICE</thirdPartyFilename>
+                            <outputDirectory>${project.basedir}</outputDirectory>
+                            <fileTemplate>${project.basedir}/assets/NOTICE.ftl</fileTemplate>
+                            <includeTransitiveDependencies>false</includeTransitiveDependencies>
+                            <excludedGroups>fr.cs.ikats</excludedGroups>
+                            <licenseMerges>
+                                <licenseMerge>Apache License 2.0|Apache License, Version 2.0|The Apache Software License, Version 2.0|Apache 2</licenseMerge>
+                                <licenseMerge>GNU Lesser General Public License|GNU Lesser General Public Licence|GNU LESSER GENERAL PUBLIC LICENSE</licenseMerge>
+                                <licenseMerge>MIT License|The MIT License</licenseMerge>
+                                <licenseMerge>CDDL 1.1, GPL2 w/ CPE|CDDL + GPLv2 with classpath exception</licenseMerge>
+                            </licenseMerges>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
             <!-- Configure the build paths -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
@@ -80,6 +116,27 @@
                 <configuration>
                     <failOnMissingWebXml>false</failOnMissingWebXml>
                 </configuration>
+                <executions>
+                    <execution>
+                        <id>default-war</id>
+                        <goals>
+                            <goal>war</goal>
+                        </goals>
+                        <phase>package</phase>
+                        <configuration>
+                            <webResources>
+                                <resource>
+                                   <directory>${project.basedir}</directory>
+                                   <targetPath>META-INF</targetPath>
+                                   <includes>
+                                       <include>LICENSE</include>
+                                       <include>NOTICE</include>
+                                   </includes>
+                                </resource>
+                            </webResources>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
 
             <!-- Deploy the artifact -->
