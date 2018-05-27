@@ -48,6 +48,11 @@ RUN mvn -B -e -o -T 1C clean package -DskipTests=true
 
 FROM openjdk:8
 
+LABEL license="Apache License, Version 2.0"
+LABEL copyright="CS Systèmes d'Information"
+LABEL maintainer="contact@ikats.org"
+LABEL version="0.7.39"
+
 # install zip in order to repack war after configuration injection
 RUN apt-get update && apt-get install -y --no-install-recommends zip \
 	&& rm -rf /var/lib/apt/lists/*
