@@ -236,19 +236,19 @@
         <dependency>
             <groupId>fr.cs.ikats</groupId>
             <artifactId>ikats-commons</artifactId>
-            <version>0.0.1-SNAPSHOT</version>
+            <version>0.7.39</version>
         </dependency>
 
         <dependency>
             <groupId>fr.cs.ikats</groupId>
             <artifactId>db-web-client</artifactId>
-            <version>0.0.1-SNAPSHOT</version>
+            <version>0.7.39</version>
         </dependency>
 
         <dependency>
             <groupId>fr.cs.ikats</groupId>
             <artifactId>ikats-datamodel</artifactId>
-            <version>0.0.1-SNAPSHOT</version>
+            <version>0.7.39</version>
             <exclusions>
                 <exclusion>
                     <groupId>org.slf4j</groupId>
