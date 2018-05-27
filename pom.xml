@@ -4,7 +4,7 @@
 
     <groupId>fr.cs.ikats</groupId>
     <artifactId>ikats-ingestion</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.7.39</version>
     <name>ikats-ingestion</name>
     <description>Data import management into IKATS</description>
     <packaging>war</packaging>
