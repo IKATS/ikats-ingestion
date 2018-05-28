@@ -1,5 +1,10 @@
 FROM maven:3.5.2-jdk-8 as war-build
 
+LABEL license="Apache License, Version 2.0"
+LABEL copyright="CS Systèmes d'Information"
+LABEL maintainer="contact@ikats.org"
+LABEL version="0.7.39"
+
 WORKDIR /usr/src/app
 # /root/.m2 is a volume :(
 # Build cache fix provided by https://github.com/carlossg/docker-maven/issues/36#issuecomment-334562850
