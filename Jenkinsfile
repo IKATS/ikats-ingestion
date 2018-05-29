@@ -39,7 +39,11 @@ pipeline {
             agent { node { label 'docker' } }
             steps {
                 script {
-                    ingestModuleImage = docker.build("ikats-ingestion")
+                  
+                    // Replacing docker registry to private one. See [#172302]
+                    sh "sed -i 's/FROM ikats/FROM hub.ops.ikats.org/' Dockerfile"
+
+                    ingestModuleImage = docker.build("ingestion", "--pull .")
 
                     fullBranchName = "${env.BRANCH_NAME}"
                     branchName = fullBranchName.substring(fullBranchName.lastIndexOf("/") + 1)
@@ -50,7 +54,7 @@ pipeline {
                         ingestModuleImage.push(branchName + "_" + shortCommit)
                         ingestModuleImage.push(branchName + "_latest")
                           if (branchName == "master") {
-                            ingestModuleImage.push("latest")
+                            ingestModuleImage.push("master")
                           }
                     }
                 }

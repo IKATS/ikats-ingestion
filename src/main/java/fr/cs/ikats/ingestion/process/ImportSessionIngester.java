@@ -1,3 +1,19 @@
+/**
+ * Copyright 2018 CS Systèmes d'Information
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package fr.cs.ikats.ingestion.process;
 
 import java.time.Duration;
@@ -34,7 +50,6 @@ import fr.cs.ikats.util.concurrent.ExecutorPoolManager;
 
 /**
  * That class represent a thread which is the main part of the ingestion process ({@link IngestionProcess}) that basically submit all items/timeseries ({@link ImportItem}) of the dataset for ingestion and analyse/check their individual status.
- * @author ftoral
  */
 @Stateless
 public class ImportSessionIngester implements Runnable {
