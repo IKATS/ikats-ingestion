@@ -3,7 +3,7 @@ FROM maven:3.5.2-jdk-8 as war-build
 LABEL license="Apache License, Version 2.0"
 LABEL copyright="CS Systèmes d'Information"
 LABEL maintainer="contact@ikats.org"
-LABEL version="0.7.39"
+LABEL version="0.7.40"
 
 WORKDIR /usr/src/app
 # /root/.m2 is a volume :(
@@ -51,7 +51,7 @@ FROM openjdk:8
 LABEL license="Apache License, Version 2.0"
 LABEL copyright="CS Systèmes d'Information"
 LABEL maintainer="contact@ikats.org"
-LABEL version="0.7.39"
+LABEL version="0.7.40"
 
 # install zip in order to repack war after configuration injection
 RUN apt-get update && apt-get install -y --no-install-recommends zip \
