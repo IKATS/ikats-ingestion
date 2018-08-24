@@ -3,6 +3,7 @@
 ![Docker Automated build](https://img.shields.io/docker/automated/ikats/ingestion.svg)
 ![Docker Build Status](https://img.shields.io/docker/build/ikats/ingestion.svg)
 ![MicroBadger Size](https://img.shields.io/microbadger/image-size/ikats/ingestion.svg)
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2FIKATS%2Fikats-ingestion.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2FIKATS%2Fikats-ingestion?ref=badge_shield)
 
 This module provides features in order to ingest data in IKATS.  
 The application is deployed on a Tommee server and runs independantly of IKATS datamodel.
@@ -248,3 +249,7 @@ To stop the server from the <a href="#server-host">server host</a> use:
 /home/ikats/ingestion/apache-tomee-plume-7.0.3/bin/./shutdown.sh
 ```
 
+
+
+## License
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2FIKATS%2Fikats-ingestion.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2FIKATS%2Fikats-ingestion?ref=badge_large)
