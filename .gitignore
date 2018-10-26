@@ -10,3 +10,4 @@ target
 .idea
 *.iml
 ikats-import-sessions.xml
+*.versionsBackup
